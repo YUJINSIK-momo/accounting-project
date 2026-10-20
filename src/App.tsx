@@ -2,12 +2,13 @@ import { useState, type ElementType } from 'react';
 import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import {
   BarChart3, BookOpen, Building2, Calculator, CheckSquare, ClipboardList, CreditCard, FileSignature, FileText,
-  HandCoins, Landmark, Layers, ListChecks, Menu, Receipt, ReceiptText, RotateCcw, Scale, ShieldAlert, Table2, Wallet, X,
+  HandCoins, Home as HomeIcon, Landmark, Layers, ListChecks, Menu, Receipt, ReceiptText, RotateCcw, Scale, ShieldAlert, Table2, Wallet, X,
 } from 'lucide-react';
 import { Badge, cx } from './components/yuyu';
 import { resetDB, update, useDB } from './data/store';
 import { NotificationBell } from './components/app/NotificationBell';
 import { inbox, docList } from './lib/approval';
+import Home from './pages/Home';
 import Dashboard from './pages/Dashboard';
 import ExpenseClaim from './pages/ExpenseClaim';
 import ClaimList from './pages/ClaimList';
@@ -35,7 +36,14 @@ interface NavItem {
 }
 
 const NAV: { group: string; items: NavItem[] }[] = [
-  { group: '현황', items: [{ to: '/', label: '경비현황분석', icon: BarChart3 }, { to: '/approvals', label: '결재함', icon: CheckSquare }] },
+  {
+    group: '현황',
+    items: [
+      { to: '/', label: '홈', icon: HomeIcon },
+      { to: '/approvals', label: '결재함', icon: CheckSquare },
+      { to: '/analytics', label: '경비현황분석', icon: BarChart3 },
+    ],
+  },
   {
     group: '경비청구',
     items: [
@@ -119,11 +127,11 @@ export default function App() {
         <button type="button" className="rounded-yuyu-sm p-1.5 text-yuyu-fg-muted hover:bg-yuyu-raised lg:hidden" aria-label="메뉴 열기" onClick={() => setMenuOpen(true)}>
           <Menu size={20} />
         </button>
-        <div className="flex items-center gap-2">
+        <NavLink to="/" aria-label="홈으로" className="flex items-center gap-2 rounded-yuyu-sm">
           <span className="flex h-7 w-7 items-center justify-center rounded-yuyu-sm bg-yuyu-brand-strong text-sm font-bold text-white">₩</span>
           <span className="font-semibold text-yuyu-fg">경비 · 지출 회계</span>
           <Badge tone="brand" className="hidden sm:inline-flex">데모</Badge>
-        </div>
+        </NavLink>
         <div className="ml-auto flex items-center gap-2">
           <span className="hidden items-center gap-1.5 text-xs text-yuyu-fg-muted md:flex">
             <Building2 size={14} aria-hidden />
@@ -181,7 +189,8 @@ export default function App() {
 
         <main key={location.pathname} className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-8">
           <Routes>
-            <Route path="/" element={<Dashboard />} />
+            <Route path="/" element={<Home />} />
+            <Route path="/analytics" element={<Dashboard />} />
             <Route path="/approvals" element={<Approvals />} />
             <Route path="/claims/new" element={<ExpenseClaim />} />
             <Route path="/claims" element={<ClaimList />} />
