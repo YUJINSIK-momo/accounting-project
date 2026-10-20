@@ -92,7 +92,7 @@ export function DataTable<T>({ columns, rows, rowKey, empty = '데이터가 존�
 }
 
 const controlClass =
-  'h-9 w-full rounded-yuyu-sm border border-yuyu-line/70 bg-yuyu-bg/60 px-2.5 text-sm text-yuyu-fg placeholder:text-yuyu-fg-subtle focus:border-yuyu-brand/70 focus:outline-none disabled:opacity-50';
+  'h-9 w-full rounded-yuyu-sm border border-yuyu-line bg-yuyu-surface px-2.5 text-sm text-yuyu-fg placeholder:text-yuyu-fg-subtle focus:border-yuyu-brand/70 focus:outline-none disabled:opacity-50';
 
 export function Field({ label, required, children, hint, className }: { label: string; required?: boolean; children: ReactNode; hint?: string; className?: string }) {
   return (
@@ -148,7 +148,7 @@ export function Modal({ open, title, onClose, children, footer, width = 'max-w-2
   }, [open, onClose]);
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-yuyu-bg/80 p-4 sm:items-center" onMouseDown={onClose}>
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-yuyu-fg/40 p-4 sm:items-center" onMouseDown={onClose}>
       <div
         role="dialog"
         aria-modal="true"
@@ -277,7 +277,7 @@ export function toast(message: string) {
   const el = document.createElement('div');
   el.textContent = message;
   el.className =
-    'fixed bottom-6 left-1/2 z-[60] -translate-x-1/2 rounded-yuyu-md border border-yuyu-brand/40 bg-yuyu-overlay px-4 py-2 text-sm text-yuyu-fg shadow-yuyu-raised';
+    'fixed bottom-6 left-1/2 z-[60] -translate-x-1/2 rounded-yuyu-md border border-yuyu-brand/40 bg-yuyu-fg px-4 py-2 text-sm text-yuyu-surface shadow-yuyu-raised';
   document.body.appendChild(el);
   setTimeout(() => el.remove(), 2200);
 }

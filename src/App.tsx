@@ -1,11 +1,13 @@
 import { useState, type ElementType } from 'react';
 import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import {
-  BarChart3, BookOpen, Building2, CheckSquare, ClipboardList, CreditCard, FileSignature, FileText,
-  Layers, ListChecks, Menu, Receipt, RotateCcw, Scale, ShieldAlert, Table2, X,
+  BarChart3, BookOpen, Building2, Calculator, CheckSquare, ClipboardList, CreditCard, FileSignature, FileText,
+  HandCoins, Landmark, Layers, ListChecks, Menu, Receipt, ReceiptText, RotateCcw, Scale, ShieldAlert, Table2, Wallet, X,
 } from 'lucide-react';
 import { Badge, cx } from './components/yuyu';
 import { resetDB, update, useDB } from './data/store';
+import { NotificationBell } from './components/app/NotificationBell';
+import { inbox, docList } from './lib/approval';
 import Dashboard from './pages/Dashboard';
 import ExpenseClaim from './pages/ExpenseClaim';
 import ClaimList from './pages/ClaimList';
@@ -20,6 +22,11 @@ import TrialBalance from './pages/TrialBalance';
 import DeptSummary from './pages/DeptSummary';
 import UsageCheck from './pages/UsageCheck';
 import MasterData from './pages/MasterData';
+import Payroll from './pages/Payroll';
+import Payslips from './pages/Payslips';
+import Severance from './pages/Severance';
+import YearEnd from './pages/YearEnd';
+import TaxInvoices from './pages/TaxInvoices';
 
 interface NavItem {
   to: string;
@@ -52,6 +59,16 @@ const NAV: { group: string; items: NavItem[] }[] = [
       { to: '/journal', label: '분개장', icon: ListChecks },
       { to: '/ledger', label: '총계정원장', icon: BookOpen },
       { to: '/trial-balance', label: '합계잔액시산표', icon: Scale },
+    ],
+  },
+  {
+    group: '급여 · 세무',
+    items: [
+      { to: '/payroll', label: '급여대장', icon: Wallet },
+      { to: '/payslips', label: '급여명세서', icon: HandCoins },
+      { to: '/severance', label: '퇴직금 시뮬레이션', icon: Calculator },
+      { to: '/year-end', label: '연말정산', icon: Landmark },
+      { to: '/tax-invoices', label: '세금계산서 · 부가세', icon: ReceiptText },
     ],
   },
   { group: '기초정보', items: [{ to: '/master', label: '기초정보관리', icon: Layers }] },
@@ -94,7 +111,7 @@ export default function App() {
   const [menuOpen, setMenuOpen] = useState(false);
   const location = useLocation();
   const me = db.employees.find((e) => e.id === db.currentEmpId)!;
-  const pending = db.claims.filter((c) => c.status === '결재중').length + db.proposals.filter((p) => p.status === '결재중').length + db.disbursements.filter((d) => d.status === '결재중').length;
+  const pending = inbox(docList(db), db.currentEmpId).미결문서.length;
 
   return (
     <div className="min-h-screen">
@@ -117,7 +134,7 @@ export default function App() {
             <select
               value={db.currentEmpId}
               onChange={(e) => update((d) => void (d.currentEmpId = e.target.value))}
-              className="h-8 rounded-yuyu-sm border border-yuyu-line/70 bg-yuyu-bg/60 px-2 text-xs text-yuyu-fg"
+              className="h-8 rounded-yuyu-sm border border-yuyu-line bg-yuyu-surface px-2 text-xs text-yuyu-fg"
             >
               {db.employees.map((e) => (
                 <option key={e.id} value={e.id}>
@@ -126,6 +143,7 @@ export default function App() {
               ))}
             </select>
           </label>
+          <NotificationBell />
           <button
             type="button"
             onClick={() => {
@@ -140,16 +158,16 @@ export default function App() {
       </header>
 
       <div className="flex">
-        <aside className="sticky top-14 hidden h-[calc(100vh-3.5rem)] w-56 shrink-0 overflow-y-auto border-r border-yuyu-line/60 bg-yuyu-surface/60 lg:block">
+        <aside className="sticky top-14 hidden h-[calc(100vh-3.5rem)] w-56 shrink-0 overflow-y-auto border-r border-yuyu-line/60 bg-yuyu-surface lg:block">
           <Sidebar />
           <div className="mx-3 mb-4 rounded-yuyu-md border border-yuyu-line/50 p-3 text-xs text-yuyu-fg-subtle">
-            {me.name} {me.rank} · 결재 대기 <span className="font-mono text-yuyu-warning">{pending}</span>건
+            {me.name} {me.rank} · 내 미결 <span className="font-mono text-yuyu-warning">{pending}</span>건
           </div>
         </aside>
 
         {menuOpen && (
           <div className="fixed inset-0 z-40 lg:hidden" onClick={() => setMenuOpen(false)}>
-            <div className="absolute inset-0 bg-yuyu-bg/70" />
+            <div className="absolute inset-0 bg-yuyu-fg/40" />
             <aside className="absolute inset-y-0 left-0 w-64 overflow-y-auto border-r border-yuyu-line/60 bg-yuyu-surface" onClick={(e) => e.stopPropagation()}>
               <div className="flex justify-end p-2">
                 <button type="button" aria-label="메뉴 닫기" className="rounded-yuyu-sm p-1.5 text-yuyu-fg-muted hover:bg-yuyu-raised" onClick={() => setMenuOpen(false)}>
@@ -177,6 +195,11 @@ export default function App() {
             <Route path="/journal" element={<JournalBook />} />
             <Route path="/ledger" element={<GeneralLedger />} />
             <Route path="/trial-balance" element={<TrialBalance />} />
+            <Route path="/payroll" element={<Payroll />} />
+            <Route path="/payslips" element={<Payslips />} />
+            <Route path="/severance" element={<Severance />} />
+            <Route path="/year-end" element={<YearEnd />} />
+            <Route path="/tax-invoices" element={<TaxInvoices />} />
             <Route path="/master" element={<MasterData />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

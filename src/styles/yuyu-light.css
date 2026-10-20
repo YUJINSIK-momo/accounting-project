@@ -1,0 +1,31 @@
+/*
+ * yuyu 라이트 값 — yuyu-tokens.css(다크 정본)와 같은 이름에 밝은 값만 덮어쓴다.
+ * 브랜드 · 분야 색의 라이트 값은 Design-Dev-Infra-Pipeline 의 yuyu.css 를 따른다.
+ */
+:root {
+  --yuyu-bg: 244 246 250;
+  --yuyu-surface: 255 255 255;
+  --yuyu-raised: 238 242 248;
+  --yuyu-overlay: 226 232 240;
+
+  --yuyu-line: 214 222 233;
+  --yuyu-line-strong: 176 189 207;
+
+  --yuyu-fg: 17 24 39;
+  --yuyu-fg-muted: 75 85 99;
+  --yuyu-fg-subtle: 120 131 148;
+
+  --yuyu-brand: 46 108 240;
+  --yuyu-brand-strong: 29 86 216;
+  --yuyu-ai: 124 92 230;
+  --yuyu-infra: 13 148 136;
+  --yuyu-web: 219 39 119;
+
+  --yuyu-success: 5 150 105;
+  --yuyu-warning: 217 119 6;
+  --yuyu-danger: 220 38 38;
+
+  --yuyu-shadow-raised: 0 1px 2px rgb(15 23 42 / 0.05), 0 8px 24px -14px rgb(15 23 42 / 0.18);
+
+  color-scheme: light;
+}

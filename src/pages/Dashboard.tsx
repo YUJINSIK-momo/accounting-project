@@ -5,7 +5,7 @@ import { Amount, BarList, DataTable, Field, Select } from '../components/app/ui'
 import { empName, postedLines, usageName, useDB } from '../data/store';
 import { ACCT } from '../lib/journal';
 import { monthLabel, prevMonth, sum, won } from '../lib/format';
-import { allDocs } from './Approvals';
+import { docList } from '../lib/approval';
 
 type Dim = 'usage' | 'dept' | 'month';
 
@@ -37,7 +37,7 @@ export default function Dashboard() {
             .reverse()
             .map((p) => ({ label: monthLabel(p), value: sum(items(p), (i) => i.amount) }));
 
-  const docs = allDocs(db);
+  const docs = docList(db);
   const pending = docs.filter((d) => d.status === '결재중');
   const unposted =
     db.claims.filter((c) => c.status === '결재완료' && !c.voucherId).length + db.disbursements.filter((d) => d.status === '결재완료' && !d.voucherId).length;

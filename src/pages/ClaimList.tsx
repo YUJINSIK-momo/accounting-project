@@ -1,5 +1,7 @@
 import { useState } from 'react';
-import { PageHeader } from '../components/yuyu';
+import { FileSearch } from 'lucide-react';
+import { Button, PageHeader } from '../components/yuyu';
+import { DocumentModal } from '../components/app/approval';
 import { Amount, DataTable, Field, Select, StatusBadge, Toolbar } from '../components/app/ui';
 import { empName, usageName, useDB } from '../data/store';
 import { checkClaimItem, worst } from '../lib/journal';
@@ -12,6 +14,7 @@ export default function ClaimList() {
   const [period, setPeriod] = useState('all');
   const [status, setStatus] = useState<'all' | ApprovalStatus>('all');
   const [selected, setSelected] = useState<string>();
+  const [viewId, setViewId] = useState<string>();
 
   const rows = db.claims
     .filter((c) => period === 'all' || c.period === period)
@@ -60,6 +63,19 @@ export default function ClaimList() {
           { key: 'chk', header: '검증', align: 'center', render: (c) => <span className="text-xs text-yuyu-fg-muted">{worst(c.items.map((i) => checkClaimItem(i, c.items)))}</span> },
           { key: 'st', header: '결재상태', align: 'center', render: (c) => <StatusBadge status={c.status} /> },
           { key: 'v', header: '전표', align: 'center', render: (c) => (c.voucherId ? <span className="font-mono text-xs text-yuyu-success">{db.vouchers.find((v) => v.id === c.voucherId)?.no}</span> : <span className="text-xs text-yuyu-fg-subtle">미발행</span>) },
+          {
+            key: 'doc',
+            header: '',
+            align: 'right',
+            render: (c) =>
+              c.status !== '작성중' ? (
+                <span onClick={(e) => e.stopPropagation()}>
+                  <Button size="sm" variant="ghost" icon={FileSearch} onClick={() => setViewId(c.id)}>
+                    문서
+                  </Button>
+                </span>
+              ) : null,
+          },
         ]}
       />
       {current && (
@@ -79,6 +95,7 @@ export default function ClaimList() {
           ]}
         />
       )}
+      <DocumentModal docRef={viewId ? { kind: '경비청구', id: viewId } : undefined} onClose={() => setViewId(undefined)} />
     </div>
   );
 }

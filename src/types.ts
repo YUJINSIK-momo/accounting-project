@@ -26,6 +26,12 @@ export interface Employee {
   rank: string;
   bank: string;
   accountNo: string;
+  email: string;
+  joinDate: string;
+  /** 월 기본급 */
+  baseSalary: number;
+  /** 본인 포함 기본공제 대상 인원 */
+  dependents: number;
 }
 
 export interface Card {
@@ -48,6 +54,28 @@ export interface CardTxn {
 }
 
 export type ApprovalStatus = '작성중' | '결재중' | '결재완료' | '반려';
+
+export interface ApprovalStep {
+  empId: string;
+  decision?: '승인' | '반려';
+  decidedAt?: string;
+  comment?: string;
+}
+
+export interface ApprovalEvent {
+  at: string;
+  empId: string;
+  action: '상신' | '승인' | '반려' | '수신' | '회수';
+  comment?: string;
+}
+
+/** 발신결재라인은 순서대로 승인한다. 종결되면 수신결재라인으로 넘어가고, 참조자는 열람만 한다. */
+export interface Approval {
+  line: ApprovalStep[];
+  receivers: ApprovalStep[];
+  refs: string[];
+  history: ApprovalEvent[];
+}
 
 export type PayMethod = '법인카드' | '개인카드' | '현금';
 
@@ -72,6 +100,7 @@ export interface Claim {
   submittedAt?: string;
   decidedAt?: string;
   voucherId?: string;
+  approval?: Approval;
 }
 
 export interface Proposal {
@@ -85,6 +114,7 @@ export interface Proposal {
   status: ApprovalStatus;
   submittedAt?: string;
   decidedAt?: string;
+  approval?: Approval;
 }
 
 export type Evidence = '세금계산서' | '계산서' | '카드' | '현금영수증' | '기타';
@@ -121,6 +151,7 @@ export interface Disbursement {
   decidedAt?: string;
   voucherId?: string;
   paidVoucherId?: string;
+  approval?: Approval;
 }
 
 export interface VoucherLine {
@@ -135,11 +166,74 @@ export interface Voucher {
   id: string;
   no: string;
   date: string;
-  kind: '경비' | '지출결의' | '지급';
+  kind: '경비' | '지출결의' | '지급' | '급여';
   sourceId: string;
   memo: string;
   lines: VoucherLine[];
   status: '미발행' | '발행';
+}
+
+export interface PayrollLine {
+  empId: string;
+  base: number;
+  overtime: number;
+  bonus: number;
+  meal: number;
+  car: number;
+  pension: number;
+  health: number;
+  care: number;
+  employment: number;
+  incomeTax: number;
+  localTax: number;
+}
+
+export interface PayrollRun {
+  id: string;
+  ym: string;
+  payDate: string;
+  status: '작성중' | '확정';
+  lines: PayrollLine[];
+  voucherId?: string;
+}
+
+export interface TaxInvoice {
+  id: string;
+  kind: '매입' | '매출';
+  approvalNo: string;
+  issueDate: string;
+  partner: string;
+  bizNo: string;
+  item: string;
+  supply: number;
+  vat: number;
+  /** 수정세금계산서면 원본과 사유 */
+  modifiedFrom?: string;
+  modifyReason?: string;
+  disbLineId?: string;
+}
+
+export interface Rates {
+  pension: number;
+  pensionFloor: number;
+  pensionCap: number;
+  health: number;
+  care: number;
+  employment: number;
+  localTax: number;
+  mealExempt: number;
+  carExempt: number;
+}
+
+export interface AppNotification {
+  id: string;
+  to: string;
+  at: string;
+  kind: '결재요청' | '결재완료' | '반려' | '수신' | '참조' | '회수' | '급여';
+  title: string;
+  body: string;
+  link: string;
+  read: boolean;
 }
 
 export interface DB {
@@ -156,5 +250,9 @@ export interface DB {
   proposals: Proposal[];
   disbursements: Disbursement[];
   vouchers: Voucher[];
+  payrolls: PayrollRun[];
+  taxInvoices: TaxInvoice[];
+  rates: Rates;
+  notifications: AppNotification[];
   seq: Record<string, number>;
 }

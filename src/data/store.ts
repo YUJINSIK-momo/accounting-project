@@ -28,6 +28,8 @@ function persist() {
   }
 }
 
+export const getDB = () => db;
+
 export function useDB(): DB {
   return useSyncExternalStore(
     (cb) => {

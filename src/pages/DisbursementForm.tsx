@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { List, Plus, Save, Send, Trash2 } from 'lucide-react';
+import { FileSearch, List, Plus, ReceiptText, Save, Send, Trash2 } from 'lucide-react';
 import { Button, Callout, PageHeader } from '../components/yuyu';
-import { Amount, CheckBadge, DataTable, Field, Input, MoneyInput, Section, Select, StatusBadge, toast } from '../components/app/ui';
-import { accountName, nextDocNo, update, useDB } from '../data/store';
+import { Amount, CheckBadge, DataTable, Field, Input, Modal, MoneyInput, Section, Select, StatusBadge, toast } from '../components/app/ui';
+import { DocumentModal, SubmitDocModal } from '../components/app/approval';
+import { accountName, getDB, nextDocNo, update, useDB } from '../data/store';
 import { balance, checkDisbLine, disbJournal, worst } from '../lib/journal';
-import { nowStamp, sum, today, uid, won } from '../lib/format';
+import { sum, today, uid, won } from '../lib/format';
 import type { DB, DisbLine, Disbursement, Evidence } from '../types';
 
 const EVIDENCE: Evidence[] = ['세금계산서', '계산서', '카드', '현금영수증', '기타'];
@@ -42,6 +43,9 @@ export default function DisbursementForm() {
   const navigate = useNavigate();
   const stored = db.disbursements.find((d) => d.id === id);
   const [doc, setDoc] = useState<Disbursement>(() => (stored ? structuredClone(stored) : blank(db, params.get('proposal') ?? undefined)));
+  const [submitId, setSubmitId] = useState<string>();
+  const [viewing, setViewing] = useState(false);
+  const [invOpen, setInvOpen] = useState(false);
 
   if (id && !stored) {
     return <Callout tone="danger" title="문서를 찾을 수 없습니다">목록에서 다시 골라 주세요.</Callout>;
@@ -79,14 +83,36 @@ export default function DisbursementForm() {
         next.id = `d-${uid()}`;
         next.docNo = nextDocNo(d, 'DIS');
       }
-      if (submit) Object.assign(next, { status: '결재중', submittedAt: nowStamp(), decidedAt: undefined });
       savedId = next.id;
       const i = d.disbursements.findIndex((x) => x.id === next.id);
       if (i >= 0) d.disbursements[i] = next;
       else d.disbursements.push(next);
+      // 승인번호가 같은 매입 세금계산서를 이 문서에 연결한다
+      d.taxInvoices.forEach((t) => {
+        const l = next.lines.find((x) => x.evidenceNo && x.evidenceNo === t.approvalNo);
+        if (l) t.disbLineId = l.id;
+      });
     });
-    toast(submit ? '결재를 올렸습니다.' : '임시저장했습니다.');
-    if (!doc.id || submit) navigate(submit ? '/disbursements' : `/disbursements/${savedId}`, { replace: true });
+    setDoc(structuredClone(getDB().disbursements.find((x) => x.id === savedId)!));
+    if (submit) return setSubmitId(savedId);
+    toast('임시저장했습니다.');
+    if (!doc.id) navigate(`/disbursements/${savedId}`, { replace: true });
+  };
+
+  const openInvoices = db.taxInvoices.filter((t) => t.kind === '매입' && !t.disbLineId && !doc.lines.some((l) => l.evidenceNo === t.approvalNo));
+  const importInvoice = (tid: string) => {
+    const t = db.taxInvoices.find((x) => x.id === tid)!;
+    let vendorId = db.vendors.find((v) => v.bizNo === t.bizNo)?.id;
+    if (!vendorId) {
+      const vid = `v-${uid()}`;
+      update((d) => void d.vendors.push({ id: vid, name: t.partner, bizNo: t.bizNo }));
+      vendorId = vid;
+    }
+    const line: DisbLine = { id: `dl-${uid()}`, usageCode: '', memo: t.item, vendorId, supply: t.supply, vat: t.vat, evidence: t.vat ? '세금계산서' : '계산서', evidenceNo: t.approvalNo };
+    const empty = (l: DisbLine) => !l.vendorId && !l.supply && !l.memo;
+    set({ lines: [...doc.lines.filter((l) => !empty(l)), line] });
+    toast(`${t.partner} 세금계산서를 가져왔습니다. 용도를 고르세요.`);
+    setInvOpen(false);
   };
 
   const remove = () => {
@@ -119,6 +145,11 @@ export default function DisbursementForm() {
             <Button size="sm" variant="ghost" icon={List} to="/disbursements">
               문서목록
             </Button>
+            {doc.id && (
+              <Button size="sm" variant="outline" icon={FileSearch} onClick={() => setViewing(true)}>
+                문서 보기 · PDF
+              </Button>
+            )}
             {editable && (
               <>
                 <Button size="sm" variant="outline" icon={Trash2} onClick={remove}>
@@ -190,9 +221,14 @@ export default function DisbursementForm() {
         title="지출내역"
         action={
           editable && (
-            <Button size="sm" variant="outline" icon={Plus} onClick={() => set({ lines: [...doc.lines, newLine()] })}>
-              추가
-            </Button>
+            <>
+              <Button size="sm" variant="outline" icon={ReceiptText} onClick={() => setInvOpen(true)}>
+                계산서내역 ({openInvoices.length})
+              </Button>
+              <Button size="sm" variant="outline" icon={Plus} onClick={() => set({ lines: [...doc.lines, newLine()] })}>
+                추가
+              </Button>
+            </>
           )
         }
       >
@@ -320,6 +356,27 @@ export default function DisbursementForm() {
           />
         </Section>
       </div>
+      <Modal open={invOpen} title="매입 세금계산서 불러오기" onClose={() => setInvOpen(false)} width="max-w-4xl">
+        <DataTable
+          rows={openInvoices}
+          rowKey={(t) => t.id}
+          dense
+          empty="연결할 매입 세금계산서가 없습니다"
+          onRowClick={(t) => importInvoice(t.id)}
+          columns={[
+            { key: 'd', header: '작성일자', render: (t) => <span className="font-mono text-xs">{t.issueDate}</span> },
+            { key: 'p', header: '공급자', render: (t) => t.partner },
+            { key: 'b', header: '사업자번호', render: (t) => <span className="font-mono text-xs">{t.bizNo}</span> },
+            { key: 'i', header: '품목', render: (t) => t.item },
+            { key: 's', header: '공급가액', align: 'right', render: (t) => <Amount value={t.supply} /> },
+            { key: 'v', header: '세액', align: 'right', render: (t) => <Amount value={t.vat} /> },
+            { key: 'n', header: '승인번호', render: (t) => <span className="font-mono text-[11px] text-yuyu-fg-muted">{t.approvalNo}</span> },
+          ]}
+        />
+        <p className="mt-2 text-xs text-yuyu-fg-subtle">행을 누르면 지출내역에 한 줄로 들어갑니다. 저장하면 세금계산서가 이 문서에 연결됩니다.</p>
+      </Modal>
+      <SubmitDocModal docRef={submitId ? { kind: '지출결의서', id: submitId } : undefined} drafterId={doc.empId} onClose={() => setSubmitId(undefined)} onDone={() => navigate('/disbursements')} />
+      <DocumentModal docRef={viewing && doc.id ? { kind: '지출결의서', id: doc.id } : undefined} onClose={() => setViewing(false)} />
     </div>
   );
 }

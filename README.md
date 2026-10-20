@@ -16,13 +16,23 @@
 | 품의서 · 지출결의서 | 품의 금액 대비 집행액, 증빙별 부가세 처리, 분개 미리보기 |
 | 전표처리 | 경비전표 · 지출결의전표 발행 / 취소, 지급처리 |
 | 분개장 · 총계정원장 · 합계잔액시산표 | 발행된 전표만 반영, 대차 일치 확인 |
-| 기초정보관리 | 용도 → 계정과목 연결, 계정과목 · 거래처 · 카드 · 사원 |
+| 급여대장 · 급여명세서 | 기본급 · 수당 · 상여, 4대보험 · 원천세 계산, 확정 시 명세서 알림, 급여 전표, 명세서 PDF |
+| 퇴직금 시뮬레이션 | 최근 3개월 임금 · 상여 · 연차수당으로 1일 평균임금과 퇴직금 계산식 |
+| 연말정산 | 근로소득 원천징수부, 공제 자료를 넣는 모의 계산(환급 · 추가납부) |
+| 세금계산서 · 부가세 | 매입 계산서 ↔ 지출결의 연결, 매출 발행 · 수정발행, 신고 기간별 납부세액 |
+| 기초정보관리 | 용도 → 계정과목 연결, 계정과목 · 거래처 · 카드 · 사원 · 요율 |
 
-검증 규칙은 `src/lib/journal.ts` 에 모여 있습니다. 부적합(용도 · 내용 · 금액 누락 등)은 상신을 막고, 확인필요(심야 · 주말 · 중복 · 부가세 10% 불일치)는 표시만 합니다.
+### 결재 흐름
+
+기안자가 결재선(발신결재 순서 · 수신 · 참조)을 지정해 상신하면 결재자가 차례로 승인합니다. 종결되면 수신자가 접수하고, 참조자는 열람합니다. 반려하면 기안자에게 돌아오고, 아무도 결재하지 않았으면 기안자가 회수할 수 있습니다. 단계마다 해당 사람에게 알림(헤더의 종)이 가고, 결재란에는 승인한 사람의 서명 도장이 찍힙니다. 문서는 「인쇄 · PDF 저장」으로 PDF 를 만들 수 있고, 「메일로 보내기」는 메일 앱을 엽니다(이 앱은 서버가 없어 메일을 직접 보내지 않습니다).
+
+오른쪽 위 사용자 선택으로 결재자 · 수신자 입장을 바꿔 볼 수 있습니다.
+
+검증 규칙은 `src/lib/journal.ts`, 결재 흐름은 `src/lib/approval.ts`, 급여 · 세금 계산은 `src/lib/payroll.ts` 에 있습니다. 4대보험 요율 · 원천세는 예시 계산이므로 실제 지급 전에 고시값으로 확인해야 합니다. 부적합(용도 · 내용 · 금액 누락 등)은 상신을 막고, 확인필요(심야 · 주말 · 중복 · 부가세 10% 불일치)는 표시만 합니다.
 
 ## 디자인 시스템
 
-화면은 yuyu UI 를 씁니다. `src/components/yuyu/` 와 `src/styles/yuyu-tokens.css` 는 [Backend-Developer-Portfolio](https://github.com/YUJINSIK-momo/Backend-Developer-Portfolio) 의 yuyu 컴포넌트를 그대로 가져온 것이고, 토큰 이름 규칙은 [Design-Dev-Infra-Pipeline](https://github.com/YUJINSIK-momo/Design-Dev-Infra-Pipeline) 을 따릅니다. 표 · 입력 · 모달처럼 yuyu 에 없는 부품은 `src/components/app/ui.tsx` 에 yuyu 토큰만으로 만들었습니다.
+화면은 yuyu UI 를 밝은 테마(`src/styles/yuyu-light.css`, 같은 토큰 이름에 라이트 값만 덮어씀)로 씁니다. `src/components/yuyu/` 와 `src/styles/yuyu-tokens.css` 는 [Backend-Developer-Portfolio](https://github.com/YUJINSIK-momo/Backend-Developer-Portfolio) 의 yuyu 컴포넌트를 그대로 가져온 것이고, 토큰 이름 규칙은 [Design-Dev-Infra-Pipeline](https://github.com/YUJINSIK-momo/Design-Dev-Infra-Pipeline) 을 따릅니다. 표 · 입력 · 모달처럼 yuyu 에 없는 부품은 `src/components/app/ui.tsx` 에 yuyu 토큰만으로 만들었습니다.
 
 ## 실행
 

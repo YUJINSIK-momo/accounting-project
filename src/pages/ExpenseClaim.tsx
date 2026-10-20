@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react';
-import { ArrowRight, Ban, Copy, Plus, Send, Trash2 } from 'lucide-react';
+import { ArrowRight, Ban, Copy, FileSearch, Plus, Send, Trash2 } from 'lucide-react';
 import { Button, Callout, PageHeader, Stat } from '../components/yuyu';
 import { Amount, CheckBadge, DataTable, Field, Input, MoneyInput, Select, StatusBadge, StepNav, Toolbar, toast } from '../components/app/ui';
+import { DocumentModal, SubmitDocModal } from '../components/app/approval';
 import { nextDocNo, update, usageName, useDB } from '../data/store';
 import { merchantUsage } from '../data/seed';
 import { checkClaimItem, worst } from '../lib/journal';
-import { monthLabel, nowStamp, sum, uid, won } from '../lib/format';
+import { monthLabel, sum, uid, won } from '../lib/format';
 import type { Claim, ClaimItem, DB, PayMethod } from '../types';
 
 const STEPS = ['지출내역조회', '지출정보등록', '청구내역조회'] as const;
@@ -36,6 +37,8 @@ export default function ExpenseClaim() {
   const [includeBlocked, setIncludeBlocked] = useState(false);
   const [keyword, setKeyword] = useState('');
   const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [submitting, setSubmitting] = useState(false);
+  const [viewing, setViewing] = useState(false);
 
   const claim = db.claims.find((c) => c.empId === me.id && c.period === period);
   const editable = !claim || claim.status === '작성중' || claim.status === '반려';
@@ -127,13 +130,7 @@ export default function ExpenseClaim() {
   const submit = () => {
     if (!claim || !items.length) return toast('청구할 내역이 없습니다.');
     if (overall === '부적합') return toast('부적합 항목을 먼저 고치세요.');
-    update((d) => {
-      const c = d.claims.find((x) => x.id === claim.id)!;
-      c.status = '결재중';
-      c.submittedAt = nowStamp();
-      c.decidedAt = undefined;
-    });
-    toast('결재를 올렸습니다. 결재함에서 승인할 수 있습니다.');
+    setSubmitting(true);
   };
 
   const byUsage = Object.entries(
@@ -387,11 +384,16 @@ export default function ExpenseClaim() {
               <Button icon={Send} onClick={submit} disabled={!editable || !items.length} className="w-full">
                 결재상신
               </Button>
+              <Button variant="outline" icon={FileSearch} onClick={() => setViewing(true)} disabled={!claim} className="w-full">
+                문서 보기 · PDF
+              </Button>
               {claim?.submittedAt && <p className="text-xs text-yuyu-fg-subtle">상신 {claim.submittedAt}</p>}
             </div>
           </div>
         </div>
       )}
+      <SubmitDocModal docRef={submitting && claim ? { kind: '경비청구', id: claim.id } : undefined} drafterId={me.id} onClose={() => setSubmitting(false)} />
+      <DocumentModal docRef={viewing && claim ? { kind: '경비청구', id: claim.id } : undefined} onClose={() => setViewing(false)} />
     </div>
   );
 }

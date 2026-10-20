@@ -1,44 +1,35 @@
 import { useState } from 'react';
-import { FileText, Plus, Send } from 'lucide-react';
+import { FileSearch, FileText, Plus, Send } from 'lucide-react';
 import { Button, PageHeader } from '../components/yuyu';
 import { Amount, DataTable, Field, Input, Modal, MoneyInput, StatusBadge, TextArea, Toolbar, toast } from '../components/app/ui';
+import { DocumentModal, SubmitDocModal } from '../components/app/approval';
 import { empName, nextDocNo, update, useDB } from '../data/store';
-import { nowStamp, sum, today, uid } from '../lib/format';
+import { sum, today, uid } from '../lib/format';
 
 export default function Proposals() {
   const db = useDB();
   const [keyword, setKeyword] = useState('');
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ title: '', amount: 0, body: '' });
+  const [submitId, setSubmitId] = useState<string>();
+  const [viewId, setViewId] = useState<string>();
 
   const spent = (pid: string) => sum(db.disbursements.filter((d) => d.proposalId === pid && d.status !== '반려').flatMap((d) => d.lines), (l) => l.supply + l.vat);
   const rows = db.proposals.filter((p) => !keyword || p.title.includes(keyword)).sort((a, b) => b.draftDate.localeCompare(a.draftDate));
 
   const save = (submit: boolean) => {
     if (!form.title.trim() || form.amount <= 0) return toast('제목과 금액을 입력하세요.');
+    const id = `p-${uid()}`;
     update((d) => {
-      d.proposals.push({
-        id: `p-${uid()}`,
-        docNo: nextDocNo(d, 'PRO'),
-        title: form.title.trim(),
-        amount: form.amount,
-        body: form.body,
-        draftDate: today(),
-        empId: d.currentEmpId,
-        status: submit ? '결재중' : '작성중',
-        submittedAt: submit ? nowStamp() : undefined,
-      });
+      d.proposals.push({ id, docNo: nextDocNo(d, 'PRO'), title: form.title.trim(), amount: form.amount, body: form.body, draftDate: today(), empId: d.currentEmpId, status: '작성중' });
     });
-    toast(submit ? '품의서를 상신했습니다.' : '품의서를 저장했습니다.');
+    if (!submit) toast('품의서를 임시저장했습니다.');
     setOpen(false);
     setForm({ title: '', amount: 0, body: '' });
+    if (submit) setSubmitId(id);
   };
 
-  const submit = (id: string) =>
-    update((d) => {
-      const p = d.proposals.find((x) => x.id === id);
-      if (p) Object.assign(p, { status: '결재중', submittedAt: nowStamp(), decidedAt: undefined });
-    });
+  const submit = (id: string) => setSubmitId(id);
 
   return (
     <div className="space-y-6">
@@ -56,6 +47,7 @@ export default function Proposals() {
       <DataTable
         rows={rows}
         rowKey={(p) => p.id}
+        onRowClick={(p) => p.status !== '작성중' && setViewId(p.id)}
         showFooter
         columns={[
           { key: 'no', header: '문서번호', render: (p) => <span className="font-mono text-xs">{p.docNo}</span>, footer: `${rows.length}건` },
@@ -73,7 +65,11 @@ export default function Proposals() {
             render: (p) =>
               p.status === '작성중' || p.status === '반려' ? (
                 <Button size="sm" variant="outline" icon={Send} onClick={() => submit(p.id)}>
-                  상신
+                  {p.status === '반려' ? '재상신' : '상신'}
+                </Button>
+              ) : p.status === '결재중' ? (
+                <Button size="sm" variant="ghost" icon={FileSearch} onClick={() => setViewId(p.id)}>
+                  문서보기
                 </Button>
               ) : p.status === '결재완료' ? (
                 <Button size="sm" variant="ghost" icon={FileText} to={`/disbursements/new?proposal=${p.id}`}>
@@ -113,6 +109,8 @@ export default function Proposals() {
           </Field>
         </div>
       </Modal>
+      <SubmitDocModal docRef={submitId ? { kind: '품의서', id: submitId } : undefined} drafterId={db.proposals.find((p) => p.id === submitId)?.empId ?? db.currentEmpId} onClose={() => setSubmitId(undefined)} />
+      <DocumentModal docRef={viewId ? { kind: '품의서', id: viewId } : undefined} onClose={() => setViewId(undefined)} />
     </div>
   );
 }

@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { Plus } from 'lucide-react';
-import { Button, PageHeader } from '../components/yuyu';
-import { DataTable, Field, Input, Select, Tabs, Toolbar, toast } from '../components/app/ui';
+import { Button, Callout, PageHeader } from '../components/yuyu';
+import { DataTable, Field, Input, MoneyInput, Select, Tabs, Toolbar, toast } from '../components/app/ui';
+import { DEFAULT_RATES } from '../lib/payroll';
+import { won } from '../lib/format';
 import { accountName, empName, update, useDB } from '../data/store';
 import { uid } from '../lib/format';
-import type { Card } from '../types';
+import type { Card, Rates } from '../types';
 
-type Tab = 'account' | 'usage' | 'vendor' | 'card' | 'employee';
+type Tab = 'account' | 'usage' | 'vendor' | 'card' | 'employee' | 'rates';
 
 export default function MasterData() {
   const db = useDB();
@@ -44,6 +46,7 @@ export default function MasterData() {
           { value: 'vendor', label: '거래처', count: db.vendors.length },
           { value: 'card', label: '카드', count: db.cards.length },
           { value: 'employee', label: '사원', count: db.employees.length },
+          { value: 'rates', label: '요율' },
         ]}
         value={tab}
         onChange={setTab}
@@ -189,10 +192,58 @@ export default function MasterData() {
             { key: 'n', header: '이름', render: (e) => e.name },
             { key: 'd', header: '부서', render: (e) => e.dept },
             { key: 'r', header: '직급', render: (e) => e.rank },
+            { key: 'j', header: '입사일', render: (e) => <span className="font-mono text-xs">{e.joinDate}</span> },
+            { key: 's', header: '월 기본급', align: 'right', render: (e) => <span className="font-mono">{won(e.baseSalary)}</span> },
+            { key: 'dep', header: '기본공제', align: 'right', render: (e) => `${e.dependents}명` },
             { key: 'b', header: '급여계좌', render: (e) => <span className="font-mono text-xs">{e.bank} {e.accountNo}</span> },
-            { key: 'a', header: '경비 계정', render: () => <span className="text-yuyu-fg-muted">{accountName(db, '262')}</span> },
+            { key: 'm', header: '메일', render: (e) => <span className="text-xs text-yuyu-fg-muted">{e.email}</span> },
+            { key: 'a', header: '개인 경비 계정', render: () => <span className="text-yuyu-fg-muted">{accountName(db, '262')}</span> },
           ]}
         />
+      )}
+
+      {tab === 'rates' && (
+        <div className="space-y-4">
+          <Callout tone="warning" title="예시 기본값입니다">
+            4대보험 요율과 비과세 한도는 해마다 바뀝니다. 실제 급여에 쓰기 전에 고시값으로 고치세요. 바꾼 요율은 급여대장의 「요율로 다시 계산」에 반영됩니다.
+          </Callout>
+          <DataTable
+            rows={(
+              [
+                ['pension', '국민연금 근로자 부담', '%'],
+                ['pensionFloor', '국민연금 기준소득월액 하한', '원'],
+                ['pensionCap', '국민연금 기준소득월액 상한', '원'],
+                ['health', '건강보험 근로자 부담', '%'],
+                ['care', '장기요양보험 (건강보험료 대비)', '%'],
+                ['employment', '고용보험 근로자 부담', '%'],
+                ['localTax', '지방소득세 (소득세 대비)', '%'],
+                ['mealExempt', '식대 비과세 한도(월)', '원'],
+                ['carExempt', '자가운전보조금 비과세 한도(월)', '원'],
+              ] as Array<[keyof Rates, string, string]>
+            ).map(([key, label, unit]) => ({ key, label, unit }))}
+            rowKey={(r) => r.key}
+            dense
+            columns={[
+              { key: 'l', header: '항목', render: (r) => r.label },
+              {
+                key: 'v',
+                header: '값',
+                width: '180px',
+                render: (r) =>
+                  r.unit === '원' ? (
+                    <MoneyInput value={db.rates[r.key]} onChange={(n) => update((d) => void (d.rates[r.key] = n))} />
+                  ) : (
+                    <Input type="number" step="0.001" value={db.rates[r.key]} onChange={(e) => update((d) => void (d.rates[r.key] = Number(e.target.value) || 0))} className="text-right font-mono" />
+                  ),
+              },
+              { key: 'u', header: '단위', render: (r) => r.unit },
+              { key: 'd', header: '기본값', align: 'right', render: (r) => <span className="font-mono text-yuyu-fg-muted">{r.unit === '원' ? won(DEFAULT_RATES[r.key]) : DEFAULT_RATES[r.key]}</span> },
+            ]}
+          />
+          <Button variant="outline" onClick={() => update((d) => void (d.rates = { ...DEFAULT_RATES }))}>
+            기본값으로 되돌리기
+          </Button>
+        </div>
       )}
     </div>
   );

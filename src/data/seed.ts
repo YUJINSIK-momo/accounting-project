@@ -1,14 +1,18 @@
-import type { Card, CardTxn, Claim, ClaimItem, DB, Disbursement, Employee, Proposal, Usage, Vendor } from '../types';
+import type { Approval, Card, CardTxn, Claim, ClaimItem, DB, Disbursement, Employee, PayrollRun, Proposal, TaxInvoice, Usage, Vendor, VoucherLine } from '../types';
 import { claimJournal, disbJournal, paymentJournal } from '../lib/journal';
+import { CEO, FINANCE_LEAD, defaultLine, notify } from '../lib/approval';
+import { DEFAULT_RATES, calcLine, deductionTotal, grossPay, netPay } from '../lib/payroll';
 
 // 모든 값은 가상의 예시다. 실제 회사 · 사람 · 사업자번호가 아니다.
-export const DB_VERSION = 1;
+export const DB_VERSION = 2;
 
 const accounts: DB['accounts'] = [
   { code: '103', name: '보통예금', type: '자산' },
   { code: '135', name: '부가세대급금', type: '자산' },
   { code: '253', name: '미지급금', type: '부채' },
+  { code: '254', name: '예수금', type: '부채' },
   { code: '262', name: '미지급비용', type: '부채' },
+  { code: '801', name: '급여', type: '비용' },
   { code: '811', name: '복리후생비', type: '비용' },
   { code: '812', name: '여비교통비', type: '비용' },
   { code: '813', name: '접대비', type: '비용' },
@@ -45,13 +49,15 @@ const vendors: Vendor[] = [
   { id: 'v5', name: '그린인쇄', bizNo: '101-11-00005' },
 ];
 
+// 메일 주소는 예시용 도메인(example.com)만 쓴다
 const employees: Employee[] = [
-  { id: 'e1', name: '김하늘', dept: '경영지원팀', rank: '팀장', bank: '가상은행', accountNo: '000-0001-0001' },
-  { id: 'e2', name: '이도윤', dept: '개발팀', rank: '매니저', bank: '가상은행', accountNo: '000-0001-0002' },
-  { id: 'e3', name: '박서연', dept: '개발팀', rank: '사원', bank: '예시은행', accountNo: '000-0001-0003' },
-  { id: 'e4', name: '최민준', dept: '영업팀', rank: '과장', bank: '예시은행', accountNo: '000-0001-0004' },
-  { id: 'e5', name: '정유나', dept: '마케팅팀', rank: '대리', bank: '가상은행', accountNo: '000-0001-0005' },
-  { id: 'e6', name: '한지호', dept: '영업팀', rank: '사원', bank: '예시은행', accountNo: '000-0001-0006' },
+  { id: 'e1', name: '김하늘', dept: '경영지원팀', rank: '팀장', bank: '가상은행', accountNo: '000-0001-0001', email: 'haneul@example.com', joinDate: '2019-03-04', baseSalary: 5200000, dependents: 3 },
+  { id: 'e2', name: '이도윤', dept: '개발팀', rank: '매니저', bank: '가상은행', accountNo: '000-0001-0002', email: 'doyun@example.com', joinDate: '2021-07-01', baseSalary: 4300000, dependents: 2 },
+  { id: 'e3', name: '박서연', dept: '개발팀', rank: '사원', bank: '예시은행', accountNo: '000-0001-0003', email: 'seoyeon@example.com', joinDate: '2025-01-02', baseSalary: 3100000, dependents: 1 },
+  { id: 'e4', name: '최민준', dept: '영업팀', rank: '과장', bank: '예시은행', accountNo: '000-0001-0004', email: 'minjun@example.com', joinDate: '2020-09-14', baseSalary: 4600000, dependents: 4 },
+  { id: 'e5', name: '정유나', dept: '마케팅팀', rank: '대리', bank: '가상은행', accountNo: '000-0001-0005', email: 'yuna@example.com', joinDate: '2022-04-11', baseSalary: 3700000, dependents: 1 },
+  { id: 'e6', name: '한지호', dept: '영업팀', rank: '사원', bank: '예시은행', accountNo: '000-0001-0006', email: 'jiho@example.com', joinDate: '2024-08-19', baseSalary: 3000000, dependents: 1 },
+  { id: 'e7', name: '윤서준', dept: '경영진', rank: '대표이사', bank: '가상은행', accountNo: '000-0001-0007', email: 'seojun@example.com', joinDate: '2018-01-02', baseSalary: 8000000, dependents: 3 },
 ];
 
 const cards: Card[] = [
@@ -126,6 +132,20 @@ function makeTxns(): CardTxn[] {
 
 export const merchantUsage = (merchant: string) => merchants.find((m) => m.name === merchant);
 
+/** 결재선 시드: done 은 승인된 발신 단계 수('all' 이면 전부), received 는 수신까지 끝났는지 */
+function approval(drafter: string, line: string[], receivers: string[], done: number | 'all', submittedAt: string, decidedAt: string, received: boolean): Approval {
+  const n = done === 'all' ? line.length : done;
+  const a: Approval = {
+    line: line.map((empId, i) => (i < n ? { empId, decision: '승인', decidedAt } : { empId })),
+    receivers: receivers.map((empId) => (n === line.length && received ? { empId, decision: '승인', decidedAt } : { empId })),
+    refs: [],
+    history: [{ at: submittedAt, empId: drafter, action: '상신' }],
+  };
+  a.line.slice(0, n).forEach((s) => a.history.push({ at: decidedAt, empId: s.empId, action: '승인' }));
+  a.receivers.filter((r) => r.decision).forEach((r) => a.history.push({ at: decidedAt, empId: r.empId, action: '수신' }));
+  return a;
+}
+
 export function seed(): DB {
   const db: DB = {
     version: DB_VERSION,
@@ -141,6 +161,10 @@ export function seed(): DB {
     proposals: [],
     disbursements: [],
     vouchers: [],
+    payrolls: [],
+    taxInvoices: [],
+    rates: { ...DEFAULT_RATES },
+    notifications: [],
     seq: {},
   };
 
@@ -148,7 +172,7 @@ export function seed(): DB {
   const docNo = (prefix: string) => `${prefix}-2026-${String(next(prefix)).padStart(4, '0')}`;
   const voucherNo = (date: string) => `${date.replaceAll('-', '')}-${String(next(`V${date}`)).padStart(4, '0')}`;
 
-  const issue = (kind: '경비' | '지출결의' | '지급', sourceId: string, date: string, memo: string, lines: DB['vouchers'][number]['lines']) => {
+  const issue = (kind: '경비' | '지출결의' | '지급' | '급여', sourceId: string, date: string, memo: string, lines: VoucherLine[]) => {
     const id = `vc${db.vouchers.length + 1}`;
     db.vouchers.push({ id, no: voucherNo(date), date, kind, sourceId, memo, lines, status: '발행' });
     return id;
@@ -174,7 +198,8 @@ export function seed(): DB {
           txnId: t.id,
         };
       });
-      const status: Claim['status'] = ym === '2026-10' ? (card.id === 'c2' ? '결재중' : card.id === 'c3' ? '결재완료' : '작성중') : '결재완료';
+      // 10월: 최민준(c2)은 경영지원팀장 결재 대기, 정유나(c3)는 종결 후 수신 대기, 박서연(c4)은 현재 사용자(이도윤) 결재 대기
+      const status: Claim['status'] = ym === '2026-10' ? (card.id === 'c2' || card.id === 'c4' ? '결재중' : card.id === 'c3' ? '결재완료' : '작성중') : '결재완료';
       const claim: Claim = {
         id: `cl-${card.id}-${ym}`,
         docNo: docNo('EXP'),
@@ -186,6 +211,11 @@ export function seed(): DB {
         submittedAt: status === '작성중' ? undefined : ym === '2026-10' ? '2026-10-16 10:00' : `${ym}-25 10:00`,
         decidedAt: status === '결재완료' ? (ym === '2026-10' ? '2026-10-17 15:00' : `${ym}-26 15:00`) : undefined,
       };
+      if (status !== '작성중') {
+        const submitted = claim.submittedAt!;
+        const decided = claim.decidedAt ?? '2026-10-17 15:00';
+        claim.approval = approval(card.ownerId, defaultLine(db, card.ownerId), [FINANCE_LEAD], status === '결재완료' ? 'all' : 0, submitted, decided, ym !== '2026-10');
+      }
       if (ym !== '2026-10') {
         const date = `${ym}-28`;
         claim.voucherId = issue('경비', claim.id, date, `${ym} 경비청구 (${employees.find((e) => e.id === claim.empId)?.name})`, claimJournal(db, claim));
@@ -199,6 +229,9 @@ export function seed(): DB {
     { id: 'p2', docNo: docNo('PRO'), title: '10월 온라인 광고 집행 품의', amount: 5000000, draftDate: '2026-09-25', empId: 'e5', body: '검색 광고 10월분 집행', status: '결재완료', submittedAt: '2026-09-25 14:00', decidedAt: '2026-09-26 10:20' },
     { id: 'p3', docNo: docNo('PRO'), title: '사내 교육 외부 강사 섭외', amount: 1200000, draftDate: '2026-10-15', empId: 'e1', body: '11월 정보보호 교육 2시간', status: '결재중', submittedAt: '2026-10-15 16:10' },
   ];
+  proposals[0].approval = approval('e2', defaultLine(db, 'e2'), [], 'all', '2026-09-03 09:30', '2026-09-04 11:00', true);
+  proposals[1].approval = approval('e5', defaultLine(db, 'e5'), [], 'all', '2026-09-25 14:00', '2026-09-26 10:20', true);
+  proposals[2].approval = approval('e1', defaultLine(db, 'e1'), [], 0, '2026-10-15 16:10', '', false);
   db.proposals = proposals;
 
   const pay = (empId: string) => {
@@ -228,10 +261,79 @@ export function seed(): DB {
       status: '결재중', submittedAt: '2026-10-16 17:00',
     },
   ];
+  disbursements[0].approval = approval('e2', defaultLine(db, 'e2'), [FINANCE_LEAD], 'all', '2026-09-10 10:00', '2026-09-11 09:00', true);
+  disbursements[1].approval = approval('e5', defaultLine(db, 'e5'), [FINANCE_LEAD], 'all', '2026-10-05 11:00', '2026-10-06 10:00', true);
+  disbursements[2].approval = approval('e2', defaultLine(db, 'e2'), [FINANCE_LEAD], 0, '2026-10-16 17:00', '', false);
   db.disbursements = disbursements;
   const d1 = disbursements[0];
   d1.voucherId = issue('지출결의', d1.id, d1.acctDate, d1.title, disbJournal(db, d1));
   d1.paidVoucherId = issue('지급', d1.id, d1.payDate, `${d1.title} 지급`, paymentJournal(db, d1));
 
+  // 급여: 1~9월은 확정 · 전표발행, 10월은 작성중. 설 · 추석이 든 달에 기본급 50% 상여.
+  const r = rng(7);
+  for (let m = 1; m <= 10; m++) {
+    const ym = `2026-${pad(m)}`;
+    const payDate = m === 12 ? '2027-01-10' : `2026-${pad(m + 1)}-10`;
+    const lines = employees.map((e) =>
+      calcLine(db.rates, e, {
+        base: e.baseSalary,
+        overtime: e.rank === '대표이사' ? 0 : Math.round((r() * 6) * 10) * 10000,
+        bonus: m === 2 || m === 9 ? Math.round(e.baseSalary * 0.5) : 0,
+        meal: 200000,
+        car: e.dept === '영업팀' ? 200000 : 0,
+      }),
+    );
+    const run: PayrollRun = { id: `pr-${ym}`, ym, payDate, status: m === 10 ? '작성중' : '확정', lines };
+    if (run.status === '확정') run.voucherId = issue('급여', run.id, payDate, `${ym} 급여`, payrollJournal(run));
+    db.payrolls.push(run);
+  }
+
+  const inv = (kind: TaxInvoice['kind'], issueDate: string, partner: string, bizNo: string, item: string, supply: number, vat: number, extra: Partial<TaxInvoice> = {}): TaxInvoice => ({
+    id: `ti-${db.taxInvoices.length + 1}`,
+    kind,
+    approvalNo: `${issueDate.replaceAll('-', '')}-4100${kind === '매입' ? '0001' : '0002'}-${String(db.taxInvoices.length + 1).padStart(8, '0')}`,
+    issueDate,
+    partner,
+    bizNo,
+    item,
+    supply,
+    vat,
+    ...extra,
+  });
+  const push = (t: TaxInvoice) => (db.taxInvoices.push(t), t);
+  push(inv('매입', '2026-07-31', '클라우드호스팅', '101-11-00003', '7월 서버 호스팅', 800000, 80000, { disbLineId: '-' }));
+  push(inv('매입', '2026-08-31', '클라우드호스팅', '101-11-00003', '8월 서버 호스팅', 810000, 81000, { disbLineId: '-' }));
+  push(inv('매입', '2026-09-10', '오피스몰', '101-11-00001', '27인치 모니터 4대', 1800000, 180000, { disbLineId: 'd1l1', approvalNo: '20260910-41000001-00000001' }));
+  push(inv('매입', '2026-10-05', '온라인광고센터', '101-11-00002', '검색 광고 10월분', 4545455, 454545, { disbLineId: 'd2l1', approvalNo: '20261005-41000001-00000002' }));
+  push(inv('매입', '2026-10-16', '클라우드호스팅', '101-11-00003', '10월 서버 호스팅', 820000, 82000, { disbLineId: 'd3l1', approvalNo: '20261016-41000001-00000003' }));
+  push(inv('매입', '2026-10-12', '그린인쇄', '101-11-00005', '명함 · 리플릿 인쇄', 300000, 30000));
+  push(inv('매입', '2026-10-14', '러닝랩 교육', '101-11-00004', '실무 교육 위탁', 1090909, 109091));
+  push(inv('매출', '2026-07-15', 'A 고객사', '301-81-00011', '7월 유지보수 용역', 12000000, 1200000));
+  push(inv('매출', '2026-08-20', 'B 유통', '301-81-00012', '시스템 구축 2차', 8500000, 850000));
+  push(inv('매출', '2026-09-25', 'C 솔루션', '301-81-00013', '데이터 분석 용역', 15000000, 1500000));
+  push(inv('매출', '2026-10-10', 'A 고객사', '301-81-00011', '10월 유지보수 용역', 12000000, 1200000));
+  const b = push(inv('매출', '2026-10-15', 'B 유통', '301-81-00012', '시스템 구축 3차', 6000000, 600000));
+  push(inv('매출', '2026-10-18', 'B 유통', '301-81-00012', '시스템 구축 3차 (공급가액 변동)', -1000000, -100000, { modifiedFrom: b.id, modifyReason: '공급가액 변동' }));
+
+  // 알림 — 현재 사용자(이도윤)에게 몇 건 쌓아 둔다
+  notify(db, 'e2', '결재요청', '경비청구 결재 요청', '박서연 · 2026년 10월 경비청구', '/approvals?doc=' + encodeURIComponent('경비청구:cl-c4-2026-10'), '2026-10-16 10:00');
+  notify(db, 'e2', '급여', '9월 급여명세서가 발행되었습니다', '지급일 2026-10-10', '/payslips', '2026-10-10 09:00');
+  notify(db, 'e1', '결재요청', '지출결의서 결재 요청', '이도윤 · 서버 호스팅 10월분', '/approvals?doc=' + encodeURIComponent('지출결의서:d3'), '2026-10-16 17:00');
+  notify(db, 'e1', '수신', '수신 문서가 도착했습니다', '정유나 · 2026년 10월 경비청구', '/approvals?doc=' + encodeURIComponent('경비청구:cl-c3-2026-10'), '2026-10-17 15:00');
+  notify(db, CEO, '결재요청', '품의서 결재 요청', '김하늘 · 사내 교육 외부 강사 섭외', '/approvals?doc=' + encodeURIComponent('품의서:p3'), '2026-10-15 16:10');
+  db.notifications.forEach((n) => n.at < '2026-10-11' && (n.read = true));
+
   return db;
+}
+
+/** 급여 전표: 총지급액은 급여, 공제액은 예수금, 차인지급액은 보통예금 */
+export function payrollJournal(run: PayrollRun): VoucherLine[] {
+  const gross = run.lines.reduce((a, l) => a + grossPay(l), 0);
+  const ded = run.lines.reduce((a, l) => a + deductionTotal(l), 0);
+  const net = run.lines.reduce((a, l) => a + netPay(l), 0);
+  return [
+    { side: '차변', accountCode: '801', amount: gross, vendor: '임직원', memo: `${run.ym} 급여` },
+    { side: '대변', accountCode: '254', amount: ded, vendor: '4대보험 · 원천세', memo: `${run.ym} 급여 공제` },
+    { side: '대변', accountCode: '103', amount: net, vendor: '임직원', memo: `${run.ym} 급여 지급` },
+  ];
 }
