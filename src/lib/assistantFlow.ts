@@ -55,6 +55,7 @@ const MENU: Chip[] = [
   chip('부가세', 'vat'),
   chip('매출 · 이익', 'pnl'),
   chip('미발행 전표', 'unposted'),
+  chip('지급 대기', 'payable'),
   chip('자료 찾기', 'search.start'),
 ];
 
@@ -186,6 +187,8 @@ export function runAction(d: DB, action: Action): BotReply {
       return fromIntent(d, { kind: 'pnl' });
     case 'unposted':
       return fromIntent(d, { kind: 'unposted' });
+    case 'payable':
+      return fromIntent(d, { kind: 'payable' });
     case 'search.start':
       return reply([{ kind: 'text', text: '무엇을 찾을까요? 문서번호(예: DIS-2026-0002) · 제목 · 거래처 · 직원 이름을 적어 주세요.' }], [], { field: 'query', action: { id: 'search.run' } });
     case 'search.run':

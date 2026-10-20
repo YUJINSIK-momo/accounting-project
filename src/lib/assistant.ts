@@ -3,6 +3,7 @@
 import type { DB, PayMethod } from '../types';
 import { docList, inbox, pendingStep } from './approval';
 import { budgetRows } from './budget';
+import { payables } from './transfer';
 import { postedLines } from '../data/store';
 import { monthLabel, prevMonth, sum, today, toDate, won } from './format';
 import { netPay } from './payroll';
@@ -20,6 +21,7 @@ export type Intent =
   | { kind: 'invoices'; partner?: string }
   | { kind: 'pnl' }
   | { kind: 'unposted' }
+  | { kind: 'payable' }
   | { kind: 'search'; query: string }
   | { kind: 'navigate'; to: string; label: string }
   | { kind: 'help' };
@@ -107,6 +109,7 @@ export const MENUS: Array<[RegExp, string, string]> = [
   [/품의서/, '/proposals', '품의서'],
   [/지출결의/, '/disbursements', '지출결의서'],
   [/전표처리/, '/vouchers', '전표처리'],
+  [/지급|이체/, '/payments', '지급 · 이체'],
   [/분개장/, '/journal', '분개장'],
   [/원장/, '/ledger', '총계정원장'],
   [/시산표/, '/trial-balance', '합계잔액시산표'],
@@ -166,6 +169,7 @@ export function parseLocal(d: DB, text: string): Intent {
   if (/반려/.test(t)) return { kind: 'mine', filter: '반려' };
   if (/상신한|올린 문서|내 문서|진행 중/.test(t)) return { kind: 'mine', filter: /진행/.test(t) ? '결재중' : 'all' };
   if (/미발행|전표.*(안|대기)/.test(t)) return { kind: 'unposted' };
+  if (/지급\s*대기|이체할|입금\s*안|송금|이체\s*파일/.test(t)) return { kind: 'payable' };
   if (/예산/.test(t)) {
     const dept = d.depts.find((x) => t.includes(x.name))?.name;
     const acct = d.accounts.find((a) => t.includes(a.name))?.code ?? d.usages.find((u) => u.code === usageFromText(d, t))?.accountCode;
@@ -296,6 +300,14 @@ export function answer(d: DB, intent: Intent): Reply {
         ...d.disbursements.filter((x) => x.status === '결재완료' && !x.voucherId).map((x) => ['지출결의서', x.docNo, x.title, sum(x.lines, (l) => l.supply + l.vat)]),
       ] as Array<Array<string | number>>;
       return { text: rows.length ? `전표가 아직 발행되지 않은 결재완료 문서가 ${rows.length}건이에요.` : '전표를 기다리는 문서가 없어요.', table: rows.length ? { title: '미발행 문서', columns: ['구분', '문서', '내용', '금액'], rows } : undefined, links: [{ label: '전표처리 열기', to: '/vouchers' }] };
+    }
+    case 'payable': {
+      const rows = payables(d);
+      return {
+        text: rows.length ? `이체를 기다리는 지급이 ${rows.length}건 · ${won(sum(rows, (p) => p.amount))}원이에요. 지급 · 이체 화면에서 이체 파일을 만들 수 있어요.` : '이체를 기다리는 지급이 없어요.',
+        table: rows.length ? { title: '지급 대기', columns: ['구분', '문서', '받는 분', '금액', '지급요청일'], rows: rows.map((p) => [p.refKind, p.docNo, p.payee, p.amount, p.dueDate]) } : undefined,
+        links: [{ label: '지급 · 이체 열기', to: '/payments' }],
+      };
     }
     case 'navigate':
       return { text: `${intent.label} 화면으로 갈게요.`, links: [{ label: `${intent.label} 열기`, to: intent.to }] };

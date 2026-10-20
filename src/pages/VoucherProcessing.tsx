@@ -4,6 +4,7 @@ import { Button, Callout, PageHeader } from '../components/yuyu';
 import { Amount, DataTable, Section, StatusBadge, Tabs, toast } from '../components/app/ui';
 import { accountName, addVoucher, empName, update, usageName, useDB } from '../data/store';
 import { balance, claimJournal, disbJournal, paymentJournal } from '../lib/journal';
+import { lockedKeys } from '../lib/transfer';
 import { monthLabel, sum, today } from '../lib/format';
 import type { ApprovalStatus, DB, VoucherLine } from '../types';
 
@@ -82,7 +83,7 @@ export default function VoucherProcessing() {
   };
 
   const issueAll = () => {
-    const todo = rows.filter((r) => !done(r));
+    const todo = rows.filter((r) => !done(r) && !(tab === '지급' && lockedKeys(db).has(`D:${r.id}`)));
     todo.forEach(issue);
     if (!todo.length) toast('발행할 문서가 없습니다.');
   };
@@ -140,7 +141,9 @@ export default function VoucherProcessing() {
             header: '',
             align: 'right',
             render: (r) =>
-              done(r) ? (
+              tab === '지급' && !done(r) && lockedKeys(db).has(`D:${r.id}`) ? (
+                <span className="text-xs text-yuyu-warning">이체 묶음 처리중</span>
+              ) : done(r) ? (
                 <Button size="sm" variant="ghost" icon={Undo2} onClick={() => cancel(r)}>
                   발행취소
                 </Button>

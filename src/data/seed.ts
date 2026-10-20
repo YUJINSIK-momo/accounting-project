@@ -2,9 +2,10 @@ import type { Approval, Budget, Card, CardTxn, Claim, ClaimItem, Company, DB, De
 import { claimJournal, disbJournal, paymentJournal } from '../lib/journal';
 import { CEO, FINANCE_LEAD, defaultLine, notify } from '../lib/approval';
 import { DEFAULT_RATES, calcLine, deductionTotal, grossPay, netPay } from '../lib/payroll';
+import { DEFAULT_COLUMNS } from '../lib/banks';
 
 // 모든 값은 가상의 예시다. 실제 회사 · 사람 · 사업자번호가 아니다.
-export const DB_VERSION = 3;
+export const DB_VERSION = 4;
 
 const accounts: DB['accounts'] = [
   { code: '103', name: '보통예금', type: '자산' },
@@ -236,6 +237,12 @@ export function seed(): DB {
     companies,
     depts,
     lineFavorites: [],
+    companyAccounts: [
+      { id: 'ca1', bank: '가상은행', accountNo: '100-200-300001', label: '운영자금' },
+      { id: 'ca2', bank: '예시은행', accountNo: '200-300-400001', label: '급여 전용' },
+    ],
+    transferColumns: DEFAULT_COLUMNS.map((c) => ({ ...c })),
+    transferBatches: [],
     seq: {},
   };
 
@@ -431,6 +438,9 @@ export function seed(): DB {
     ]);
   }
 
+  // 지급일이 지난 급여는 이체까지 끝난 것으로 둔다
+  db.payrolls.filter((r) => r.status === '확정' && r.payDate <= TODAY).forEach((r) => (r.paidEmpIds = r.lines.map((l) => l.empId)));
+
   // 급여 공제액(예수금)은 다음 달 10일에 납부한다
   for (const run of db.payrolls.filter((x) => x.status === '확정')) {
     const on = due(run.payDate, 1, 10);
@@ -454,7 +464,7 @@ export function seed(): DB {
         { side: '대변', accountCode: '103', amount: corp, vendor: '카드사', memo: `${c.period} 카드대금` },
       ]);
     if (own && ownDay <= TODAY)
-      issue('지급', c.id, ownDay, `${c.period} 개인 경비 지급`, [
+      c.reimbursedVoucherId = issue('지급', c.id, ownDay, `${c.period} 개인 경비 지급`, [
         { side: '차변', accountCode: '262', amount: own, vendor: employees.find((e) => e.id === c.empId)?.name ?? '', memo: `${c.period} 개인 경비` },
         { side: '대변', accountCode: '103', amount: own, vendor: employees.find((e) => e.id === c.empId)?.name ?? '', memo: `${c.period} 개인 경비` },
       ]);

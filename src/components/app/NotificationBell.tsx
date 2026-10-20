@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, CheckCheck, FileCheck2, FileX2, Inbox, Undo2, Wallet } from 'lucide-react';
+import { Banknote, Bell, CheckCheck, FileCheck2, FileX2, Inbox, Undo2, Wallet } from 'lucide-react';
 import { cx } from '../yuyu';
 import { update, useDB } from '../../data/store';
 import type { AppNotification } from '../../types';
@@ -14,6 +14,7 @@ const ICON: Record<AppNotification['kind'], typeof Bell> = {
   참조: Inbox,
   회수: Undo2,
   급여: Wallet,
+  입금: Banknote,
 };
 const TONE: Record<AppNotification['kind'], string> = {
   결재요청: 'text-yuyu-warning',
@@ -24,6 +25,7 @@ const TONE: Record<AppNotification['kind'], string> = {
   참조: 'text-yuyu-fg-muted',
   회수: 'text-yuyu-fg-muted',
   급여: 'text-yuyu-brand',
+  입금: 'text-yuyu-success',
 };
 
 /** 헤더 알림 — 현재 사용자에게 온 결재 · 수신 · 급여 알림 */

@@ -144,6 +144,10 @@ await shot('analytics');
 // 회계
 await go('#/vouchers');
 await shot('vouchers');
+await go('#/payments');
+await shot('payments');
+await click('이체 양식', 'main');
+await shot('payments-format');
 await go('#/journal');
 await shot('journal');
 await go('#/ledger');

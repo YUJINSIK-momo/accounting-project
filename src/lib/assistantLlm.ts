@@ -8,7 +8,7 @@ export const MODELS = [
   { id: 'claude-sonnet-5-5', label: 'Claude Sonnet 5.5' },
 ];
 
-const INTENTS = ['proposal', 'expense', 'submit_claim', 'pending', 'mine', 'budget', 'spend', 'payroll', 'vat', 'invoices', 'pnl', 'unposted', 'search', 'navigate', 'help'] as const;
+const INTENTS = ['proposal', 'expense', 'submit_claim', 'pending', 'mine', 'budget', 'spend', 'payroll', 'vat', 'invoices', 'pnl', 'unposted', 'payable', 'search', 'navigate', 'help'] as const;
 
 function tool(d: DB) {
   return {
@@ -17,7 +17,7 @@ function tool(d: DB) {
     input_schema: {
       type: 'object',
       properties: {
-        intent: { type: 'string', enum: INTENTS, description: 'proposal=품의 작성, expense=경비 한 건 입력, submit_claim=이번 달 경비 상신, pending=내 미결, mine=내가 상신한 문서, budget=예산 잔액, spend=경비 합계, payroll=급여, vat=부가세, invoices=세금계산서 목록, pnl=매출 · 이익, unposted=미발행 전표, search=문서 · 거래처 · 직원 검색, navigate=메뉴 열기, help=도움말' },
+        intent: { type: 'string', enum: INTENTS, description: 'proposal=품의 작성, expense=경비 한 건 입력, submit_claim=이번 달 경비 상신, pending=내 미결, mine=내가 상신한 문서, budget=예산 잔액, spend=경비 합계, payroll=급여, vat=부가세, invoices=세금계산서 목록, pnl=매출 · 이익, unposted=미발행 전표, payable=이체 기다리는 지급, search=문서 · 거래처 · 직원 검색, navigate=메뉴 열기, help=도움말' },
         title: { type: 'string', description: '품의 제목(금액 제외)' },
         amount: { type: 'integer', description: '원 단위 금액. 사용자가 말한 경우만' },
         body: { type: 'string', description: '품의 내용 · 목적' },

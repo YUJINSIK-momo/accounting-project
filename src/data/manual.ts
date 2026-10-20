@@ -1,7 +1,7 @@
 import type { ElementType } from 'react';
 import {
   BookOpen, Calculator, CheckSquare, ClipboardList, CreditCard, FileBarChart2, FileSignature, FileText, Home,
-  Layers, Network, Sparkles, PiggyBank, Receipt, ReceiptText, Rocket, Route, Scale, Wallet,
+  ArrowRightLeft, Layers, Network, Sparkles, PiggyBank, Receipt, ReceiptText, Rocket, Route, Scale, Wallet,
 } from 'lucide-react';
 import type { PipelineNode } from '../components/yuyu';
 
@@ -246,6 +246,31 @@ export const MANUAL: ManualPage[] = [
       { title: '지급처리', body: '전표가 발행된 지출결의서를 지급요청일에 「지급처리」하면 미지급금 / 보통예금 전표가 만들어집니다.' },
       { title: '발행취소', body: '잘못 발행한 전표는 「발행취소」로 지웁니다. 지급까지 된 문서는 지급 전표를 먼저 취소해야 합니다.' },
     ],
+  },
+  {
+    id: 'payments',
+    group: '회계',
+    title: '지급 · 이체',
+    icon: ArrowRightLeft,
+    summary: '결재와 전표가 끝난 지급(거래처 대금 · 개인 경비 · 급여)을 은행 대량이체 파일로 만들고, 기업뱅킹에서 예약 · 승인한 뒤 결과 파일로 마무리합니다.',
+    who: '경영지원팀',
+    route: '/payments',
+    hero: { src: 'payments.webp', caption: '지급 대기 — 예약일 · 출금계좌를 정하고 고른 건으로 이체 파일을 만듭니다' },
+    flow: [
+      { label: '지급 대기', sub: '결재 · 전표 완료', tone: 'neutral' },
+      { label: '이체 파일 만들기', tone: 'brand' },
+      { label: '기업뱅킹 예약 · OTP 승인', tone: 'warning', human: true },
+      { label: '결과 파일 올리기', tone: 'infra' },
+      { label: '지급 전표 · 입금 알림', tone: 'success' },
+    ],
+    steps: [
+      { title: '지급 대기에 나오는 것', body: '전표가 발행된 지출결의서의 거래처 대금, 전표가 발행된 경비청구의 개인 지출분(법인카드분은 카드사 결제라 빠짐), 확정된 급여의 직원별 실수령액입니다. 계좌가 비었거나 은행코드를 모르면 「계좌 확인 필요」로 표시되어 고를 수 없습니다.' },
+      { title: '이체 파일 만들기', body: '예약일(이체일)과 출금계좌, 내통장표시 방식을 정하고 건을 고른 뒤 「이체 파일 만들기」를 누르면 은행 대량이체 엑셀이 내려받아지고 「이체 묶음」이 하나 생깁니다. 묶음에 든 건은 결과를 반영하거나 묶음을 취소할 때까지 다시 고를 수 없어 두 번 지급되지 않습니다.' },
+      { title: '기업뱅킹에서 예약 · 승인', body: '기업뱅킹 「대량이체(다건이체)」 메뉴에 파일을 올리고 이체일을 예약일로 지정한 뒤 OTP · 인증서로 승인합니다. 돈을 보내는 마지막 승인은 늘 사람이 합니다.' },
+      { title: '결과 파일 올리기', body: '이체가 끝나면 은행의 처리결과 파일(.xlsx · .csv)을 「이체 묶음」에서 올립니다. 계좌번호와 금액으로 줄을 맞춰 성공 건은 지급 전표를 발행하고 받는 직원에게 입금 알림을 보내며, 실패 건은 사유와 함께 지급 대기로 돌아갑니다(「재이체 필요」). 결과 파일이 없으면 「결과 직접 입력」으로 넣을 수 있고, 데모에서는 「데모 결과 파일 받기」로 시험할 수 있습니다.' },
+      { title: '은행 양식 맞추기', body: '「이체 양식 · 출금계좌」 탭에서 열을 넣고 빼고, 머리글 이름과 순서를 주거래 은행 양식에 맞춥니다. 은행코드는 금융기관 표준 3자리를 씁니다.', shot: { src: 'payments-format.webp', caption: '이체 양식 — 열 순서 · 머리글 · 넣기, 출금계좌' } },
+    ],
+    tips: ['급여는 급여 전표에서 이미 보통예금 지급으로 처리되어 있어, 이체 결과로는 지급 완료 표시와 입금 알림만 합니다.', '은행과 직접 연동(펌뱅킹 · 은행 API)하면 「파일 내려받기 · 결과 파일 올리기」 자리를 은행 호출로 바꾸면 됩니다.'],
   },
   {
     id: 'books',

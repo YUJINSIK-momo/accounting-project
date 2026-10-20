@@ -130,6 +130,8 @@ export interface Claim {
   voucherId?: string;
   approval?: Approval;
   attachments?: Attachment[];
+  /** 개인 지출분(미지급비용)을 이체로 돌려준 지급 전표 */
+  reimbursedVoucherId?: string;
 }
 
 export interface Proposal {
@@ -229,6 +231,8 @@ export interface PayrollRun {
   status: '작성중' | '확정';
   lines: PayrollLine[];
   voucherId?: string;
+  /** 급여 이체가 끝난 직원 */
+  paidEmpIds?: string[];
 }
 
 export interface TaxInvoice {
@@ -263,7 +267,7 @@ export interface AppNotification {
   id: string;
   to: string;
   at: string;
-  kind: '결재요청' | '결재완료' | '반려' | '수신' | '참조' | '회수' | '급여' | '합의요청';
+  kind: '결재요청' | '결재완료' | '반려' | '수신' | '참조' | '회수' | '급여' | '합의요청' | '입금';
   title: string;
   body: string;
   link: string;
@@ -285,6 +289,51 @@ export interface LineFavorite {
   line: Array<{ empId: string; role: '결재' | '합의' }>;
   receivers: string[];
   refs: string[];
+}
+
+export interface CompanyAccount {
+  id: string;
+  bank: string;
+  accountNo: string;
+  label: string;
+}
+
+export type TransferField = 'seq' | 'bankCode' | 'bankName' | 'accountNo' | 'holder' | 'amount' | 'payeeMemo' | 'myMemo' | 'scheduledDate' | 'docNo';
+
+export interface TransferColumn {
+  key: TransferField;
+  header: string;
+  include: boolean;
+}
+
+export interface TransferItem {
+  id: string;
+  /** 지급 대상을 가리키는 열쇠 — D:지출결의 id, C:경비청구 id, P:급여 id:사원 id */
+  key: string;
+  refKind: '지출결의' | '경비' | '급여';
+  docNo: string;
+  empId?: string;
+  payee: string;
+  bank: string;
+  accountNo: string;
+  holder: string;
+  amount: number;
+  payeeMemo: string;
+  myMemo: string;
+  status: '예약' | '완료' | '실패';
+  reason?: string;
+}
+
+export interface TransferBatch {
+  id: string;
+  no: string;
+  createdAt: string;
+  by: string;
+  scheduledDate: string;
+  fromAccountId: string;
+  items: TransferItem[];
+  status: '결과 대기' | '반영 완료' | '취소';
+  resultAt?: string;
 }
 
 export interface DB {
@@ -309,5 +358,8 @@ export interface DB {
   companies: Company[];
   depts: Dept[];
   lineFavorites: LineFavorite[];
+  companyAccounts: CompanyAccount[];
+  transferColumns: TransferColumn[];
+  transferBatches: TransferBatch[];
   seq: Record<string, number>;
 }
