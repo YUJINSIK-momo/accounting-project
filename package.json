@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "manual:shots": "node scripts/manual-shots.mjs"
   },
   "dependencies": {
     "fflate": "0.8.2",
@@ -21,6 +22,7 @@
     "@vitejs/plugin-react": "4.7.0",
     "autoprefixer": "10.5.0",
     "postcss": "8.5.14",
+    "puppeteer-core": "23.11.1",
     "tailwindcss": "3.4.19",
     "typescript": "5.7.3",
     "vite": "6.4.2"

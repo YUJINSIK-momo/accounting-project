@@ -1,12 +1,13 @@
 import { useState, type ElementType } from 'react';
 import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import {
-  BarChart3, BookOpen, Building2, Calculator, CheckSquare, ClipboardList, CreditCard, FileSignature, FileText,
+  BarChart3, BookOpen, BookOpenText, Building2, Calculator, CheckSquare, ClipboardList, CreditCard, FileSignature, FileText,
   FileBarChart2, HandCoins, Home as HomeIcon, Landmark, Layers, PiggyBank, ListChecks, Menu, Receipt, ReceiptText, RotateCcw, Scale, ShieldAlert, Table2, Wallet, X,
 } from 'lucide-react';
 import { Badge, cx } from './components/yuyu';
 import { resetDB, update, useDB } from './data/store';
 import { NotificationBell } from './components/app/NotificationBell';
+import { Assistant } from './components/app/Assistant';
 import { inbox, docList } from './lib/approval';
 import Home from './pages/Home';
 import Dashboard from './pages/Dashboard';
@@ -30,6 +31,7 @@ import YearEnd from './pages/YearEnd';
 import TaxInvoices from './pages/TaxInvoices';
 import Budget from './pages/Budget';
 import Statements from './pages/Statements';
+import Manual from './pages/Manual';
 
 interface NavItem {
   to: string;
@@ -137,6 +139,18 @@ export default function App() {
           <Badge tone="brand" className="hidden sm:inline-flex">데모</Badge>
         </NavLink>
         <div className="ml-auto flex items-center gap-2">
+          <NavLink
+            to="/manual"
+            className={({ isActive }) =>
+              cx(
+                'flex h-8 items-center gap-1.5 rounded-yuyu-sm border px-2.5 text-xs transition-colors',
+                isActive ? 'border-yuyu-brand/50 bg-yuyu-brand/10 text-yuyu-fg' : 'border-yuyu-line text-yuyu-fg-muted hover:bg-yuyu-raised hover:text-yuyu-fg',
+              )
+            }
+          >
+            <BookOpenText size={14} aria-hidden />
+            <span>매뉴얼</span>
+          </NavLink>
           <span className="hidden items-center gap-1.5 text-xs text-yuyu-fg-muted md:flex">
             <Building2 size={14} aria-hidden />
             {db.company}
@@ -216,10 +230,13 @@ export default function App() {
             <Route path="/budget" element={<Budget />} />
             <Route path="/statements" element={<Statements />} />
             <Route path="/master" element={<MasterData />} />
+            <Route path="/manual" element={<Manual />} />
+            <Route path="/manual/:id" element={<Manual />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>
       </div>
+      <Assistant />
     </div>
   );
 }

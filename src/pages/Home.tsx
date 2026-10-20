@@ -4,10 +4,11 @@ import { ArrowRight, CreditCard, ExternalLink, FileSignature, FileText, Plus, Sa
 import { Button, Callout, Card, PageHeader, SectionHeader, Stat } from '../components/yuyu';
 import { Field, Input, MoneyInput, Select, TextArea, toast } from '../components/app/ui';
 import { DocTable, SubmitDocModal } from '../components/app/approval';
-import { nextDocNo, update, useDB } from '../data/store';
+import { update, useDB } from '../data/store';
+import { addManualExpense, checkManualExpense, createProposal } from '../lib/actions';
 import { docList, inbox } from '../lib/approval';
 import { netPay } from '../lib/payroll';
-import { monthLabel, sum, today, uid, won } from '../lib/format';
+import { monthLabel, sum, today, won } from '../lib/format';
 import type { PayMethod } from '../types';
 
 // 카드 · 현금영수증 · 세금계산서를 실제로 연동할 때 참고할 공개 문서
@@ -43,26 +44,17 @@ export default function Home() {
   const [submitId, setSubmitId] = useState<string>();
 
   const addExpense = () => {
-    if (!expense.merchant.trim() || expense.amount <= 0 || !expense.usageCode) return toast('사용처 · 금액 · 용도를 입력하세요.');
-    if (expense.date.slice(0, 7) !== ym) return toast('이번 달 사용분만 빠른 입력으로 넣을 수 있습니다.');
-    if (myClaim && myClaim.status !== '작성중' && myClaim.status !== '반려') return toast(`이번 달 청구서는 이미 ${myClaim.status} 상태입니다.`);
-    update((d) => {
-      let c = d.claims.find((x) => x.empId === me.id && x.period === ym);
-      if (!c) {
-        c = { id: `cl-${uid()}`, docNo: nextDocNo(d, 'EXP'), empId: me.id, period: ym, items: [], status: '작성중' };
-        d.claims.push(c);
-      }
-      c.items.push({ id: `ci-${uid()}`, usedAt: `${expense.date} 12:00`, merchant: expense.merchant.trim(), payMethod: expense.payMethod, amount: expense.amount, usageCode: expense.usageCode, memo: expense.memo.trim() });
-      c.items.sort((a, b) => a.usedAt.localeCompare(b.usedAt));
-    });
+    const problem = checkManualExpense(db, me.id, expense);
+    if (problem) return toast(problem);
+    update((d) => void addManualExpense(d, me.id, expense));
     toast(`${monthLabel(ym)} 경비청구서에 1건을 넣었습니다.`);
     setExpense(blankExpense());
   };
 
   const saveProposal = (submit: boolean) => {
     if (!proposal.title.trim() || proposal.amount <= 0) return toast('제목과 금액을 입력하세요.');
-    const id = `p-${uid()}`;
-    update((d) => void d.proposals.push({ id, docNo: nextDocNo(d, 'PRO'), title: proposal.title.trim(), amount: proposal.amount, body: proposal.body, draftDate: today(), empId: me.id, status: '작성중' }));
+    let id = '';
+    update((d) => void (id = createProposal(d, me.id, proposal)));
     setProposal({ title: '', amount: 0, body: '' });
     if (submit) setSubmitId(id);
     else toast('품의서를 임시저장했습니다. 품의서 메뉴에서 이어서 상신할 수 있습니다.');
