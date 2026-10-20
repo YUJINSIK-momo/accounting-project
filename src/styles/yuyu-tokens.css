@@ -1,0 +1,45 @@
+/*
+ * yuyu tokens — 이 포트폴리오의 디자인 토큰 정본.
+ * 색은 "R G B" 채널로 두어 Tailwind 의 투명도 표기(bg-yuyu-surface/80)를 그대로 쓴다.
+ * 이름 규칙: --yuyu-<역할>[-<단계>]. 화면 코드는 hex 를 직접 쓰지 않고 이 이름만 쓴다.
+ */
+:root {
+  /* 바탕 — 깊이 순서: bg < surface < raised < overlay */
+  --yuyu-bg: 9 13 26;
+  --yuyu-surface: 14 20 40;
+  --yuyu-raised: 20 28 54;
+  --yuyu-overlay: 27 37 68;
+
+  /* 선 */
+  --yuyu-line: 51 65 85;
+  --yuyu-line-strong: 71 85 105;
+
+  /* 글자 */
+  --yuyu-fg: 241 245 249;
+  --yuyu-fg-muted: 148 163 184;
+  --yuyu-fg-subtle: 100 116 139;
+
+  /* 브랜드와 분야 색 — 분야 색은 프로젝트 분류에만 쓴다 */
+  --yuyu-brand: 77 140 255;
+  --yuyu-brand-strong: 46 108 240;
+  --yuyu-ai: 167 139 250;
+  --yuyu-infra: 45 212 191;
+  --yuyu-web: 244 114 182;
+
+  /* 상태 */
+  --yuyu-success: 52 211 153;
+  --yuyu-warning: 251 191 36;
+  --yuyu-danger: 248 113 113;
+
+  /* 모양 */
+  --yuyu-radius-sm: 6px;
+  --yuyu-radius-md: 10px;
+  --yuyu-radius-lg: 16px;
+  --yuyu-shadow-raised: 0 1px 0 rgb(255 255 255 / 0.04) inset, 0 12px 32px -12px rgb(0 0 0 / 0.6);
+
+  /* 글꼴 */
+  --yuyu-font-sans: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+  --yuyu-font-mono: "JetBrains Mono", "Fira Code", ui-monospace, monospace;
+
+  color-scheme: dark;
+}

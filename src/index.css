@@ -1,0 +1,39 @@
+@import "./styles/yuyu-tokens.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  html {
+    font-family: var(--yuyu-font-sans);
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-yuyu-bg text-yuyu-fg antialiased;
+    min-height: 100vh;
+    word-break: keep-all;
+  }
+
+  code, pre, .font-mono {
+    font-family: var(--yuyu-font-mono);
+  }
+
+  :focus-visible {
+    @apply outline-none ring-2 ring-yuyu-brand/70 ring-offset-2 ring-offset-yuyu-bg;
+  }
+
+  select option {
+    @apply bg-yuyu-surface text-yuyu-fg;
+  }
+
+  input[type="date"]::-webkit-calendar-picker-indicator,
+  input[type="month"]::-webkit-calendar-picker-indicator {
+    filter: invert(0.8);
+  }
+}
