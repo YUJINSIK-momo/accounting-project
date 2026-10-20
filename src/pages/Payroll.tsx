@@ -64,7 +64,7 @@ export default function Payroll() {
   const issueVoucher = () => {
     update((d) => {
       const r = d.payrolls.find((x) => x.ym === ym)!;
-      r.voucherId = addVoucher(d, { date: r.payDate, kind: '급여', sourceId: r.id, memo: `${r.ym} 급여`, lines: payrollJournal(r), status: '발행' });
+      r.voucherId = addVoucher(d, { date: r.payDate, kind: '급여', sourceId: r.id, memo: `${r.ym} 급여`, lines: payrollJournal(r, d.employees), status: '발행' });
     });
     toast('급여 전표를 발행했습니다.');
   };
@@ -121,6 +121,7 @@ export default function Payroll() {
       </div>
 
       <DataTable
+        exportName="급여대장"
         rows={lines}
         rowKey={(l) => l.empId}
         dense

@@ -30,6 +30,7 @@ export default function TrialBalance() {
         차변 합계 {tot.debit.toLocaleString('ko-KR')}원 · 대변 합계 {tot.credit.toLocaleString('ko-KR')}원
       </Callout>
       <DataTable
+        exportName="합계잔액시산표"
         rows={rows}
         rowKey={(r) => r.a.code}
         showFooter

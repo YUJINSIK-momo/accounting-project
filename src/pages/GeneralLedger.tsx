@@ -41,6 +41,7 @@ export default function GeneralLedger() {
         </span>
       </Toolbar>
       <DataTable
+        exportName="총계정원장"
         rows={rows}
         rowKey={(l) => `${l.voucher.id}-${l.i}`}
         dense

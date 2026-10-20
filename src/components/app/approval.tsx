@@ -1,150 +1,31 @@
 // 결재선 지정 · 결재라인 보기 · 문서 보기(인쇄 · PDF) 부품
 import { useState, type ReactNode } from 'react';
-import { ArrowDown, ArrowUp, Check, ChevronRight, CornerUpLeft, Inbox, Mail, Plus, Send, X } from 'lucide-react';
+import { Check, ChevronRight, CornerUpLeft, Gavel, Inbox, Mail, X } from 'lucide-react';
 import { Badge, Button, cx } from '../yuyu';
-import { DataTable, Field, Modal, Select, StatusBadge, TextArea, toast } from './ui';
+import { DataTable, Modal, StatusBadge, TextArea, toast } from './ui';
 import { KeyValue, Paper, PaperTable, PaperTitle, PrintButton, PrintPortal } from './print';
 import { accountName, update, usageName, useDB, vendorName } from '../../data/store';
-import { canRecall, decideDoc, defaultLine, defaultReceivers, docList, pendingStep, recallDoc, sourceOf, submitDoc, type Doc, type DocKind } from '../../lib/approval';
+import { canDelegate, canRecall, decideDoc, docList, pendingStep, recallDoc, sourceOf, submitDoc, type Doc, type DocKind } from '../../lib/approval';
+import { ApprovalLineModal } from './orgchart';
+import { AttachmentList } from './attachments';
 import { disbJournal } from '../../lib/journal';
 import { monthLabel, sum, won } from '../../lib/format';
 import type { Approval, Claim, DB, Disbursement, Proposal } from '../../types';
 
 const person = (db: DB, id: string) => db.employees.find((e) => e.id === id);
 
-/** 결재선 지정 — 발신결재(순서대로) · 수신 · 참조 */
-export function ApprovalLineModal({ open, kind, drafterId, onClose, onSubmit }: { open: boolean; kind: DocKind; drafterId: string; onClose: () => void; onSubmit: (line: string[], receivers: string[], refs: string[], comment: string) => void }) {
-  const db = useDB();
-  const [line, setLine] = useState<string[]>(() => defaultLine(db, drafterId));
-  const [receivers, setReceivers] = useState<string[]>(() => defaultReceivers(kind));
-  const [refs, setRefs] = useState<string[]>([]);
-  const [comment, setComment] = useState('');
-  const [adding, setAdding] = useState('');
-  const others = db.employees.filter((e) => e.id !== drafterId);
-
-  const move = (i: number, dir: -1 | 1) => {
-    const next = [...line];
-    [next[i], next[i + dir]] = [next[i + dir], next[i]];
-    setLine(next);
-  };
-  const toggle = (list: string[], set: (v: string[]) => void, id: string) => set(list.includes(id) ? list.filter((x) => x !== id) : [...list, id]);
-
-  return (
-    <Modal
-      open={open}
-      title={`결재상신 · ${kind}`}
-      onClose={onClose}
-      width="max-w-3xl"
-      footer={
-        <>
-          <Button variant="ghost" onClick={onClose}>
-            취소
-          </Button>
-          <Button icon={Send} disabled={!line.length} onClick={() => onSubmit(line, receivers, refs, comment)}>
-            상신
-          </Button>
-        </>
-      }
-    >
-      <div className="grid gap-5 md:grid-cols-2">
-        <div className="space-y-3">
-          <h3 className="text-sm font-semibold text-yuyu-fg">발신결재라인 · 순서대로 결재</h3>
-          <ol className="space-y-1.5">
-            <li className="flex items-center gap-2 rounded-yuyu-sm border border-yuyu-line bg-yuyu-raised px-3 py-2 text-sm">
-              <Badge tone="neutral">기안</Badge>
-              {person(db, drafterId)?.name} <span className="text-xs text-yuyu-fg-subtle">{person(db, drafterId)?.rank}</span>
-            </li>
-            {line.map((id, i) => (
-              <li key={id} className="flex items-center gap-2 rounded-yuyu-sm border border-yuyu-line px-3 py-2 text-sm">
-                <Badge tone="brand">결재 {i + 1}</Badge>
-                <span className="text-yuyu-fg">{person(db, id)?.name}</span>
-                <span className="text-xs text-yuyu-fg-subtle">
-                  {person(db, id)?.dept} · {person(db, id)?.rank}
-                </span>
-                <span className="ml-auto flex gap-0.5">
-                  <IconBtn label="위로" disabled={i === 0} onClick={() => move(i, -1)}>
-                    <ArrowUp size={14} />
-                  </IconBtn>
-                  <IconBtn label="아래로" disabled={i === line.length - 1} onClick={() => move(i, 1)}>
-                    <ArrowDown size={14} />
-                  </IconBtn>
-                  <IconBtn label="빼기" onClick={() => setLine(line.filter((x) => x !== id))}>
-                    <X size={14} />
-                  </IconBtn>
-                </span>
-              </li>
-            ))}
-          </ol>
-          <div className="flex gap-2">
-            <Select value={adding} onChange={(e) => setAdding(e.target.value)}>
-              <option value="">결재자 추가</option>
-              {others
-                .filter((e) => !line.includes(e.id))
-                .map((e) => (
-                  <option key={e.id} value={e.id}>
-                    {e.name} · {e.dept} {e.rank}
-                  </option>
-                ))}
-            </Select>
-            <Button size="md" variant="outline" icon={Plus} disabled={!adding} onClick={() => (setLine([...line, adding]), setAdding(''))}>
-              추가
-            </Button>
-          </div>
-          <Field label="상신 의견">
-            <TextArea value={comment} onChange={(e) => setComment(e.target.value)} placeholder="결재자에게 남길 말" />
-          </Field>
-        </div>
-        <div className="space-y-4">
-          <PeoplePicker title="수신 · 종결 뒤 받아서 처리할 사람" people={others} selected={receivers} onToggle={(id) => toggle(receivers, setReceivers, id)} />
-          <PeoplePicker title="참조 · 열람만" people={others} selected={refs} onToggle={(id) => toggle(refs, setRefs, id)} />
-          <p className="text-xs leading-relaxed text-yuyu-fg-subtle">결재자 · 수신자 · 참조자에게 알림이 갑니다. 반려되면 기안자에게 돌아오고, 아무도 결재하지 않았으면 기안자가 회수할 수 있습니다.</p>
-        </div>
-      </div>
-    </Modal>
-  );
-}
-
-function IconBtn({ children, label, onClick, disabled }: { children: ReactNode; label: string; onClick: () => void; disabled?: boolean }) {
-  return (
-    <button type="button" aria-label={label} disabled={disabled} onClick={onClick} className="rounded-yuyu-sm p-1 text-yuyu-fg-muted hover:bg-yuyu-raised hover:text-yuyu-fg disabled:opacity-30">
-      {children}
-    </button>
-  );
-}
-
-function PeoplePicker({ title, people, selected, onToggle }: { title: string; people: DB['employees']; selected: string[]; onToggle: (id: string) => void }) {
-  return (
-    <div className="space-y-2">
-      <h3 className="text-sm font-semibold text-yuyu-fg">{title}</h3>
-      <div className="flex flex-wrap gap-1.5">
-        {people.map((e) => (
-          <button
-            key={e.id}
-            type="button"
-            onClick={() => onToggle(e.id)}
-            aria-pressed={selected.includes(e.id)}
-            className={cx(
-              'rounded-full border px-2.5 py-1 text-xs transition-colors',
-              selected.includes(e.id) ? 'border-yuyu-brand/60 bg-yuyu-brand/10 text-yuyu-fg' : 'border-yuyu-line text-yuyu-fg-muted hover:text-yuyu-fg',
-            )}
-          >
-            {e.name} <span className="text-yuyu-fg-subtle">{e.dept}</span>
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
+export { ApprovalLineModal } from './orgchart';
 
 /** 결재라인보기 — 발신 · 수신 라인을 화살표로 잇는다 */
 export function ApprovalLineView({ approval, drafterId, submittedAt }: { approval?: Approval; drafterId: string; submittedAt?: string }) {
   const db = useDB();
   if (!approval) return <p className="text-sm text-yuyu-fg-subtle">아직 상신하지 않았습니다.</p>;
-  const node = (id: string, label: ReactNode, key: string) => (
+  const node = (id: string, label: ReactNode, key: string, role?: string) => (
     <li key={key} className="flex items-center">
       <div className="min-w-[132px] rounded-yuyu-sm border border-yuyu-line bg-yuyu-surface px-3 py-2">
         <div className="text-sm font-medium text-yuyu-fg">
           {person(db, id)?.name} <span className="text-xs font-normal text-yuyu-fg-subtle">{person(db, id)?.rank}</span>
+          {role === '합의' && <span className="ml-1 rounded-full border border-yuyu-infra/40 px-1.5 text-[10px] text-yuyu-infra">합의</span>}
         </div>
         <div className="mt-0.5 text-[11px]">{label}</div>
       </div>
@@ -152,7 +33,13 @@ export function ApprovalLineView({ approval, drafterId, submittedAt }: { approva
   );
   const stepLabel = (s: Approval['line'][number], waitingText: string) =>
     s.decision === '승인' ? (
-      <span className="text-yuyu-success">승인 {s.decidedAt?.slice(0, 10)}</span>
+      <span className="text-yuyu-success">
+        {s.role === '합의' ? '합의' : '승인'} {s.decidedAt?.slice(0, 10)}
+      </span>
+    ) : s.decision === '전결' ? (
+      <span className="font-semibold text-yuyu-success">전결 {s.decidedAt?.slice(0, 10)}</span>
+    ) : s.decision === '생략' ? (
+      <span className="text-yuyu-fg-subtle">전결로 생략</span>
     ) : s.decision === '반려' ? (
       <span className="text-yuyu-danger">반려 {s.decidedAt?.slice(0, 10)}</span>
     ) : (
@@ -172,7 +59,7 @@ export function ApprovalLineView({ approval, drafterId, submittedAt }: { approva
     <div className="space-y-3">
       <div className="space-y-1.5">
         <Badge tone="success">발신결재라인</Badge>
-        {row([node(drafterId, <span className="text-yuyu-fg-muted">상신 {submittedAt?.slice(0, 10)}</span>, 'drafter'), ...approval.line.map((s, i) => node(s.empId, stepLabel(s, '대기'), `l${i}`))])}
+        {row([node(drafterId, <span className="text-yuyu-fg-muted">상신 {submittedAt?.slice(0, 10)}</span>, 'drafter'), ...approval.line.map((s, i) => node(s.empId, stepLabel(s, '대기'), `l${i}`, s.role))])}
       </div>
       {approval.receivers.length > 0 && (
         <div className="space-y-1.5">
@@ -206,8 +93,16 @@ export function Seal({ name, size = 52 }: { name: string; size?: number }) {
 function StampBox({ approval, drafterId, submittedAt }: { approval?: Approval; drafterId: string; submittedAt?: string }) {
   const db = useDB();
   const cols = [
-    { id: drafterId, label: '기안', signed: Boolean(submittedAt), rejected: false, date: submittedAt },
-    ...(approval?.line ?? []).map((s, i) => ({ id: s.empId, label: `결재${i + 1}`, signed: s.decision === '승인', rejected: s.decision === '반려', date: s.decidedAt })),
+    { id: drafterId, label: '기안', signed: Boolean(submittedAt), rejected: false, delegated: false, skipped: false, date: submittedAt },
+    ...(approval?.line ?? []).map((s, i) => ({
+      id: s.empId,
+      label: s.role === '합의' ? '합의' : `결재${(approval?.line ?? []).slice(0, i + 1).filter((x) => (x.role ?? '결재') === '결재').length}`,
+      signed: s.decision === '승인' || s.decision === '전결',
+      rejected: s.decision === '반려',
+      delegated: s.decision === '전결',
+      skipped: s.decision === '생략',
+      date: s.decidedAt,
+    })),
   ];
   const cell = 'border border-yuyu-line-strong px-1 text-center';
   return (
@@ -222,8 +117,14 @@ function StampBox({ approval, drafterId, submittedAt }: { approval?: Approval; d
         </tr>
         <tr>
           {cols.map((c, i) => (
-            <td key={i} className={cx(cell, 'h-[66px]')}>
+            <td
+              key={i}
+              className={cx(cell, 'h-[66px]')}
+              style={c.skipped ? { background: 'linear-gradient(to top right, transparent calc(50% - 0.5px), rgb(var(--yuyu-line-strong)) 50%, transparent calc(50% + 0.5px))' } : undefined}
+            >
               {c.signed && <Seal name={person(db, c.id)?.name ?? ''} />}
+              {c.delegated && <div className="mt-0.5 text-[10px] font-semibold text-yuyu-danger">전결</div>}
+              {c.skipped && <span className="text-[12px] font-semibold text-yuyu-fg-muted">전결</span>}
               {c.rejected && <span className="rounded-yuyu-sm border border-yuyu-danger px-1.5 py-0.5 text-[11px] font-semibold text-yuyu-danger">반려</span>}
             </td>
           ))}
@@ -314,6 +215,11 @@ export function DocPaper({ kind, id }: { kind: DocKind; id: string }) {
       <PaperTitle>{title}</PaperTitle>
       <KeyValue items={common} />
       {body}
+      {(src.attachments?.length ?? 0) > 0 && (
+        <p className="mt-3 text-[11px]">
+          첨부 · {src.attachments!.map((f) => f.name).join(', ')}
+        </p>
+      )}
       {a && a.history.length > 0 && (
         <div className="mt-4 text-[11px] text-yuyu-fg-muted">
           {a.history.map((h, i) => (
@@ -338,10 +244,10 @@ export function DocumentModal({ docRef, onClose }: { docRef?: { kind: DocKind; i
   const step = pendingStep(doc.approval, doc.status);
   const myTurn = step?.empId === db.currentEmpId;
 
-  const act = (decision: '승인' | '반려') => {
+  const act = (decision: '승인' | '반려' | '전결') => {
     if (decision === '반려' && !comment.trim()) return toast('반려 사유를 적어 주세요.');
     update((d) => void decideDoc(d, doc.kind, doc.id, decision, comment.trim()));
-    toast(step?.phase === '수신' ? '수신 처리했습니다.' : `${decision}했습니다.`);
+    toast(step?.phase === '수신' ? '수신 처리했습니다.' : decision === '전결' ? '전결로 종결했습니다.' : `${decision}했습니다.`);
     setComment('');
   };
 
@@ -379,8 +285,13 @@ export function DocumentModal({ docRef, onClose }: { docRef?: { kind: DocKind; i
                 <Button size="sm" variant="outline" icon={X} onClick={() => act('반려')}>
                   반려
                 </Button>
+                {canDelegate(db, doc) && (
+                  <Button size="sm" variant="outline" icon={Gavel} onClick={() => act('전결')}>
+                    전결
+                  </Button>
+                )}
                 <Button size="sm" icon={Check} onClick={() => act('승인')}>
-                  승인
+                  {doc.approval?.line[step.index].role === '합의' ? '합의' : '승인'}
                 </Button>
               </>
             )}
@@ -404,6 +315,7 @@ export function DocumentModal({ docRef, onClose }: { docRef?: { kind: DocKind; i
           )}
         </div>
         <ApprovalLineView approval={doc.approval} drafterId={doc.empId} submittedAt={doc.submittedAt} />
+        <AttachmentList items={sourceOf(db, doc.kind, doc.id)?.attachments ?? []} />
         {myTurn && <TextArea value={comment} onChange={(e) => setComment(e.target.value)} placeholder={step?.phase === '수신' ? '수신 의견(선택)' : '결재 의견 · 반려 시 사유는 필수'} />}
         <div className="rounded-yuyu-md border border-yuyu-line bg-yuyu-bg p-3">
           <DocPaper kind={doc.kind} id={doc.id} />
@@ -436,9 +348,11 @@ export function DocTable({ rows, onOpen }: { rows: Doc[]; onOpen: (d: Doc) => vo
           render: (r) => (
             <span className="text-xs">
               {r.approval?.line.map((s, i) => (
-                <span key={i} className={s.decision === '승인' ? 'text-yuyu-success' : s.decision === '반려' ? 'text-yuyu-danger' : pendingStep(r.approval, r.status)?.empId === s.empId ? 'font-semibold text-yuyu-warning' : 'text-yuyu-fg-subtle'}>
+                <span key={i} className={s.decision === '승인' || s.decision === '전결' ? 'text-yuyu-success' : s.decision === '반려' ? 'text-yuyu-danger' : pendingStep(r.approval, r.status)?.empId === s.empId ? 'font-semibold text-yuyu-warning' : 'text-yuyu-fg-subtle'}>
                   {i > 0 && ' › '}
                   {person(db, s.empId)?.name}
+                  {s.role === '합의' && '(합의)'}
+                  {s.decision === '전결' && '(전결)'}
                 </span>
               ))}
               {r.approval?.receivers.length ? <span className="text-yuyu-fg-subtle"> · 수신 {r.approval.receivers.map((x) => person(db, x.empId)?.name).join(', ')}</span> : null}

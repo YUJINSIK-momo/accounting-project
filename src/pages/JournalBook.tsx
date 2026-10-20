@@ -32,9 +32,9 @@ export default function JournalBook() {
         <Field label="전표구분" className="w-36">
           <Select value={kind} onChange={(e) => setKind(e.target.value as typeof kind)}>
             <option value="all">전체</option>
-            <option>경비</option>
-            <option>지출결의</option>
-            <option>지급</option>
+            {['기초', '경비', '지출결의', '지급', '급여', '매출', '수금', '납부'].map((k) => (
+              <option key={k}>{k}</option>
+            ))}
           </Select>
         </Field>
         <span className="ml-auto self-center text-xs text-yuyu-fg-muted">
@@ -42,6 +42,7 @@ export default function JournalBook() {
         </span>
       </Toolbar>
       <DataTable
+        exportName="분개장"
         rows={lines}
         rowKey={(l) => `${l.voucher.id}-${l.i}`}
         dense

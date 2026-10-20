@@ -20,6 +20,7 @@ export function claimJournal(d: DB, claim: Claim): VoucherLine[] {
     amount: it.amount,
     vendor: it.merchant,
     memo: it.memo,
+    dept: emp?.dept,
   }));
   const corp = sum(claim.items.filter((i) => i.payMethod === '법인카드'), (i) => i.amount);
   const personal = sum(claim.items.filter((i) => i.payMethod !== '법인카드'), (i) => i.amount);
@@ -40,6 +41,8 @@ export function disbJournal(d: DB, disb: Disbursement): VoucherLine[] {
       amount: deductible ? l.supply : l.supply + l.vat,
       vendor: vendorName(l.vendorId),
       memo: l.memo,
+      dept: disb.dept,
+      project: disb.project || undefined,
     });
     if (deductible) {
       debit.push({ side: '차변', accountCode: ACCT.VAT_IN, amount: l.vat, vendor: vendorName(l.vendorId), memo: `${l.memo} 부가세` });

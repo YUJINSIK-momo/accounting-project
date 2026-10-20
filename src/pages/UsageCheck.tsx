@@ -62,6 +62,7 @@ export default function UsageCheck() {
         사유가 있으면 청구할 수 있습니다. 결재자가 내용을 보고 판단합니다.
       </Callout>
       <DataTable
+        exportName="사용점검"
         rows={tab === 'time' ? late : dup}
         rowKey={(t) => t.id}
         dense

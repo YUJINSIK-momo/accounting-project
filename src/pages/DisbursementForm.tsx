@@ -4,6 +4,8 @@ import { FileSearch, List, Plus, ReceiptText, Save, Send, Trash2 } from 'lucide-
 import { Button, Callout, PageHeader } from '../components/yuyu';
 import { Amount, CheckBadge, DataTable, Field, Input, Modal, MoneyInput, Section, Select, StatusBadge, toast } from '../components/app/ui';
 import { DocumentModal, SubmitDocModal } from '../components/app/approval';
+import { AttachmentEditor } from '../components/app/attachments';
+import { checkBudget, usageAccount } from '../lib/budget';
 import { accountName, getDB, nextDocNo, update, useDB } from '../data/store';
 import { balance, checkDisbLine, disbJournal, worst } from '../lib/journal';
 import { sum, today, uid, won } from '../lib/format';
@@ -66,6 +68,13 @@ export default function DisbursementForm() {
     }));
 
   const checks = doc.lines.map(checkDisbLine);
+  const budget = checkBudget(
+    db,
+    doc.acctDate.slice(0, 4),
+    doc.dept,
+    doc.lines.filter((l) => l.usageCode).map((l) => ({ accountCode: usageAccount(db, l.usageCode), amount: l.evidence === '세금계산서' ? l.supply : l.supply + l.vat })),
+    doc.id,
+  );
   const journal = disbJournal(db, doc);
   const bal = balance(journal);
   const total = sum(doc.lines, (l) => l.supply + l.vat);
@@ -306,6 +315,32 @@ export default function DisbursementForm() {
           ]}
         />
       </Section>
+
+      <div className="grid gap-6 xl:grid-cols-[1fr_1fr]">
+        <Section title={`예산 확인 · ${doc.dept} · ${doc.acctDate.slice(0, 4)}년`}>
+          <DataTable
+            rows={budget}
+            rowKey={(b) => b.accountCode}
+            dense
+            empty="용도를 고르면 계정별 예산이 보입니다"
+            columns={[
+              { key: 'a', header: '계정과목', render: (b) => `${b.accountCode} ${accountName(db, b.accountCode)}` },
+              { key: 'b', header: '연간 예산', align: 'right', render: (b) => (b.budget === undefined ? <span className="text-xs text-yuyu-fg-subtle">예산 없음</span> : <Amount value={b.budget} />) },
+              { key: 'u', header: '집행 + 진행', align: 'right', render: (b) => <Amount value={b.used} /> },
+              { key: 'm', header: '이 문서', align: 'right', render: (b) => <Amount value={b.amount} /> },
+              { key: 'r', header: '잔액', align: 'right', render: (b) => (b.remaining === undefined ? '-' : <Amount value={b.remaining} tone={b.remaining < 0 ? 'danger' : 'success'} />) },
+            ]}
+          />
+          {budget.some((b) => (b.remaining ?? 0) < 0 || b.budget === undefined) && (
+            <Callout tone="warning" title="예산을 넘거나 예산이 없는 계정이 있습니다">
+              상신은 되지만 결재자가 확인합니다. 예산은 예산 대비 집행 화면에서 조정할 수 있습니다.
+            </Callout>
+          )}
+        </Section>
+        <Section title="첨부파일">
+          <AttachmentEditor items={doc.attachments ?? []} onChange={(a) => set({ attachments: a })} by={db.currentEmpId} editable={editable} />
+        </Section>
+      </div>
 
       <div className="grid gap-6 xl:grid-cols-[1fr_1fr]">
         <Section title="지급정보" action={editable && <Button size="sm" variant="ghost" onClick={fillVendorAccount}>거래처 계좌 불러오기</Button>}>

@@ -77,6 +77,7 @@ export default function Payslips() {
         </Field>
       </Toolbar>
       <DataTable
+        exportName="급여명세서목록"
         rows={runs}
         rowKey={(r) => r.id}
         onRowClick={(r) => setOpen(r.id)}

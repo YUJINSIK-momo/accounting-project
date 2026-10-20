@@ -40,7 +40,7 @@ export function sourceOf(d: DB, kind: DocKind, id: string): Source | undefined {
   return list.find((x) => x.id === id);
 }
 
-const RANK_ORDER = ['대표이사', '팀장', '과장', '매니저', '대리', '사원'];
+export const RANK_ORDER = ['대표이사', '본부장', '팀장', '부장', '차장', '과장', '매니저', '대리', '사원'];
 export const FINANCE_LEAD = 'e1';
 export const CEO = 'e7';
 
@@ -57,6 +57,24 @@ export function defaultLine(d: DB, drafterId: string): string[] {
   return line;
 }
 
+/** 전결 한도 — 이 금액 이하면 그 직급이 최종 결재로 끝낼 수 있다(예시 규정) */
+export const DELEGATION_LIMIT: Record<string, number> = { 대표이사: Infinity, 본부장: 50_000_000, 팀장: 10_000_000, 부장: 5_000_000, 차장: 3_000_000, 과장: 3_000_000, 매니저: 3_000_000, 대리: 500_000, 사원: 0 };
+
+export interface LineEntry {
+  empId: string;
+  role: '결재' | '합의';
+}
+
+/** 지금 결재자가 전결로 끝낼 수 있는지 — 뒤에 남은 결재가 있고, 금액이 한도 이하일 때 */
+export function canDelegate(d: DB, doc: Doc) {
+  const step = pendingStep(doc.approval, doc.status);
+  if (!doc.approval || !step || step.phase !== '발신' || step.empId !== d.currentEmpId) return false;
+  if ((doc.approval.line[step.index].role ?? '결재') !== '결재') return false;
+  const rest = doc.approval.line.slice(step.index + 1).some((s) => !s.decision);
+  const rank = d.employees.find((e) => e.id === d.currentEmpId)?.rank ?? '사원';
+  return rest && doc.amount <= (DELEGATION_LIMIT[rank] ?? 0);
+}
+
 /** 돈이 나가는 문서는 종결 뒤 경영지원팀이 수신해 처리한다 */
 export const defaultReceivers = (kind: DocKind) => (kind === '품의서' ? [] : [FINANCE_LEAD]);
 
@@ -69,12 +87,12 @@ export function pendingStep(a: Approval | undefined, status: ApprovalStatus): { 
   return null;
 }
 
-export function submitDoc(d: DB, kind: DocKind, id: string, line: string[], receivers: string[], refs: string[], comment: string) {
+export function submitDoc(d: DB, kind: DocKind, id: string, line: LineEntry[], receivers: string[], refs: string[], comment: string) {
   const src = sourceOf(d, kind, id);
   if (!src) return;
   const at = nowStamp();
   src.approval = {
-    line: line.map((empId) => ({ empId })),
+    line: line.map((l) => ({ empId: l.empId, role: l.role })),
     receivers: receivers.map((empId) => ({ empId })),
     refs,
     history: [...(src.approval?.history ?? []), { at, empId: d.currentEmpId, action: '상신', comment: comment || undefined }],
@@ -83,17 +101,21 @@ export function submitDoc(d: DB, kind: DocKind, id: string, line: string[], rece
   src.submittedAt = at;
   src.decidedAt = undefined;
   const title = titleOf(kind, src);
-  notify(d, line[0], '결재요청', `${kind} 결재 요청`, `${empName(d, d.currentEmpId)} · ${src.docNo} ${title}`, docLink(kind, id), at);
+  const first = line[0];
+  if (first) notify(d, first.empId, first.role === '합의' ? '합의요청' : '결재요청', `${kind} ${first.role} 요청`, `${empName(d, d.currentEmpId)} · ${src.docNo} ${title}`, docLink(kind, id), at);
 }
 
-export function decideDoc(d: DB, kind: DocKind, id: string, decision: '승인' | '반려', comment: string) {
+export function decideDoc(d: DB, kind: DocKind, id: string, decision: '승인' | '반려' | '전결', comment: string) {
   const src = sourceOf(d, kind, id);
   const step = pendingStep(src?.approval, src?.status ?? '작성중');
   if (!src?.approval || !step || step.empId !== d.currentEmpId) return false;
   const at = nowStamp();
   const target = step.phase === '발신' ? src.approval.line[step.index] : src.approval.receivers[step.index];
+  if (decision === '전결' && step.phase !== '발신') return false;
   Object.assign(target, { decision, decidedAt: at, comment: comment || undefined });
-  src.approval.history.push({ at, empId: d.currentEmpId, action: step.phase === '수신' ? '수신' : decision, comment: comment || undefined });
+  if (decision === '전결') src.approval.line.slice(step.index + 1).forEach((s) => !s.decision && Object.assign(s, { decision: '생략' }));
+  const action = step.phase === '수신' ? '수신' : decision === '승인' && target.role === '합의' ? '합의' : decision;
+  src.approval.history.push({ at, empId: d.currentEmpId, action, comment: comment || undefined });
   const title = titleOf(kind, src);
   const link = docLink(kind, id);
   const who = empName(d, d.currentEmpId);
@@ -106,11 +128,12 @@ export function decideDoc(d: DB, kind: DocKind, id: string, decision: '승인' |
   } else {
     const next = pendingStep(src.approval, src.status);
     if (next?.phase === '발신') {
-      notify(d, next.empId, '결재요청', `${kind} 결재 요청`, `${empName(d, src.empId)} · ${src.docNo} ${title}`, link, at);
+      const role = src.approval.line[next.index].role ?? '결재';
+      notify(d, next.empId, role === '합의' ? '합의요청' : '결재요청', `${kind} ${role} 요청`, `${empName(d, src.empId)} · ${src.docNo} ${title}`, link, at);
     } else {
       src.status = '결재완료';
       src.decidedAt = at;
-      notify(d, src.empId, '결재완료', `${kind} 결재가 끝났습니다`, `${src.docNo} ${title}`, link, at);
+      notify(d, src.empId, '결재완료', `${kind} 결재가 끝났습니다${decision === '전결' ? ` (${who} 전결)` : ''}`, `${src.docNo} ${title}`, link, at);
       src.approval.receivers.forEach((r) => notify(d, r.empId, '수신', '수신 문서가 도착했습니다', `${empName(d, src.empId)} · ${src.docNo} ${title}`, link, at));
       src.approval.refs.forEach((r) => notify(d, r, '참조', '참조 문서가 도착했습니다', `${empName(d, src.empId)} · ${src.docNo} ${title}`, link, at));
     }
@@ -129,7 +152,7 @@ export function recallDoc(d: DB, kind: DocKind, id: string) {
   src.approval.history.push({ at: nowStamp(), empId: d.currentEmpId, action: '회수' });
   const first = src.approval.line[0]?.empId;
   if (first) notify(d, first, '회수', '기안자가 문서를 회수했습니다', `${src.docNo} ${titleOf(kind, src)}`, docLink(kind, id));
-  src.approval.line = src.approval.line.map((s) => ({ empId: s.empId }));
+  src.approval.line = src.approval.line.map((s) => ({ empId: s.empId, role: s.role }));
   src.status = '작성중';
   src.submittedAt = undefined;
 }
@@ -138,7 +161,7 @@ export function inbox(docs: Doc[], me: string) {
   return {
     미결문서: docs.filter((x) => pendingStep(x.approval, x.status)?.empId === me),
     상신문서: docs.filter((x) => x.empId === me && x.status !== '작성중'),
-    기결문서: docs.filter((x) => x.approval?.line.some((s) => s.empId === me && s.decision)),
+    기결문서: docs.filter((x) => x.approval?.line.some((s) => s.empId === me && s.decision && s.decision !== '생략')),
     수신참조문서: docs.filter((x) => x.status === '결재완료' && (x.approval?.refs.includes(me) || x.approval?.receivers.some((r) => r.empId === me))),
     전체: docs.filter((x) => x.status !== '작성중'),
   };

@@ -3,7 +3,9 @@ import { ArrowRight, Ban, Copy, FileSearch, Plus, Send, Trash2 } from 'lucide-re
 import { Button, Callout, PageHeader, Stat } from '../components/yuyu';
 import { Amount, CheckBadge, DataTable, Field, Input, MoneyInput, Select, StatusBadge, StepNav, Toolbar, toast } from '../components/app/ui';
 import { DocumentModal, SubmitDocModal } from '../components/app/approval';
-import { nextDocNo, update, usageName, useDB } from '../data/store';
+import { AttachmentEditor } from '../components/app/attachments';
+import { checkBudget, usageAccount } from '../lib/budget';
+import { accountName, nextDocNo, update, usageName, useDB } from '../data/store';
 import { merchantUsage } from '../data/seed';
 import { checkClaimItem, worst } from '../lib/journal';
 import { monthLabel, sum, uid, won } from '../lib/format';
@@ -133,6 +135,7 @@ export default function ExpenseClaim() {
     setSubmitting(true);
   };
 
+  const budget = checkBudget(db, period.slice(0, 4), me.dept, items.filter((i) => i.usageCode).map((i) => ({ accountCode: usageAccount(db, i.usageCode), amount: i.amount })), claim?.id);
   const byUsage = Object.entries(
     items.reduce<Record<string, number>>((acc, i) => ((acc[i.usageCode] = (acc[i.usageCode] ?? 0) + i.amount), acc), {}),
   ).sort((a, b) => b[1] - a[1]);
@@ -342,6 +345,12 @@ export default function ExpenseClaim() {
             ]}
           />
           <p className="text-xs text-yuyu-fg-subtle">검증결과에 마우스를 올리면 사유가 보입니다. 확인필요는 상신할 수 있고, 부적합은 고쳐야 상신됩니다.</p>
+          {claim && (
+            <div className="rounded-yuyu-md border border-yuyu-line bg-yuyu-surface p-4">
+              <h3 className="mb-2 text-sm font-semibold text-yuyu-fg">증빙 첨부 (청구서 단위)</h3>
+              <AttachmentEditor items={claim.attachments ?? []} onChange={(a) => update((d) => void (d.claims.find((c) => c.id === claim.id)!.attachments = a))} by={me.id} editable={editable} />
+            </div>
+          )}
         </div>
       )}
 
@@ -380,6 +389,16 @@ export default function ExpenseClaim() {
                   </li>
                 ))}
                 {!byUsage.length && <li className="text-yuyu-fg-subtle">없음</li>}
+              </ul>
+              <h3 className="pt-2 text-sm font-semibold text-yuyu-fg">{me.dept} 예산 잔액</h3>
+              <ul className="space-y-1.5 text-xs">
+                {budget.map((b) => (
+                  <li key={b.accountCode} className="flex justify-between gap-2">
+                    <span className="text-yuyu-fg-muted">{accountName(db, b.accountCode)}</span>
+                    {b.remaining === undefined ? <span className="text-yuyu-warning">예산 없음</span> : <Amount value={b.remaining} tone={b.remaining < 0 ? 'danger' : 'success'} />}
+                  </li>
+                ))}
+                {!budget.length && <li className="text-yuyu-fg-subtle">용도를 고르면 보입니다</li>}
               </ul>
               <Button icon={Send} onClick={submit} disabled={!editable || !items.length} className="w-full">
                 결재상신

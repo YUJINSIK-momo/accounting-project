@@ -4,7 +4,8 @@ import { FilePlus2, PenLine } from 'lucide-react';
 import { Button, Callout, PageHeader } from '../components/yuyu';
 import { Amount, DataTable, Field, Input, Modal, MoneyInput, Select, Tabs, Toolbar, toast } from '../components/app/ui';
 import { Paper, PaperTable, PrintButton, PrintPortal } from '../components/app/print';
-import { update, useDB } from '../data/store';
+import { addVoucher, update, useDB } from '../data/store';
+import { salesJournal } from '../data/seed';
 import { sum, today, uid, won } from '../lib/format';
 import type { DB, TaxInvoice } from '../types';
 
@@ -90,8 +91,12 @@ export default function TaxInvoices() {
 
   const issue = () => {
     if (!form.partner.trim() || !/^\d{3}-\d{2}-\d{5}$/.test(form.bizNo) || form.supply <= 0) return toast('거래처 · 사업자번호(000-00-00000) · 공급가액을 입력하세요.');
-    update((d) => void d.taxInvoices.push({ id: `ti-${uid()}`, kind: '매출', approvalNo: nextApproval(form.issueDate), ...form, partner: form.partner.trim(), vat: Math.round(form.supply * 0.1) }));
-    toast('매출 세금계산서를 발행했습니다.');
+    update((d) => {
+      const t: TaxInvoice = { id: `ti-${uid()}`, kind: '매출', approvalNo: nextApproval(form.issueDate), ...form, partner: form.partner.trim(), vat: Math.round(form.supply * 0.1) };
+      d.taxInvoices.push(t);
+      addVoucher(d, { date: t.issueDate, kind: '매출', sourceId: t.id, memo: `${t.partner} ${t.item}`, lines: salesJournal(t), status: '발행' });
+    });
+    toast('매출 세금계산서를 발행하고 매출 전표를 만들었습니다.');
     setIssueOpen(false);
     setForm({ partner: '', bizNo: '', item: '', issueDate: today(), supply: 0 });
   };
@@ -100,8 +105,8 @@ export default function TaxInvoices() {
     if (!modifying) return;
     const supply = mod.reason === '계약의 해제' || mod.reason === '환입' ? -Math.abs(mod.supply || modifying.supply) : mod.supply;
     if (!supply) return toast('변동 공급가액을 입력하세요.');
-    update((d) =>
-      void d.taxInvoices.push({
+    update((d) => {
+      const t: TaxInvoice = {
         id: `ti-${uid()}`,
         kind: modifying.kind,
         approvalNo: nextApproval(today()),
@@ -113,9 +118,11 @@ export default function TaxInvoices() {
         vat: Math.round(supply * 0.1),
         modifiedFrom: modifying.id,
         modifyReason: mod.reason,
-      }),
-    );
-    toast('수정세금계산서를 발행했습니다.');
+      };
+      d.taxInvoices.push(t);
+      if (t.kind === '매출') addVoucher(d, { date: t.issueDate, kind: '매출', sourceId: t.id, memo: `${t.partner} ${t.item}`, lines: salesJournal(t), status: '발행' });
+    });
+    toast('수정세금계산서를 발행하고 전표에 반영했습니다.');
     setModifyId(undefined);
   };
 
@@ -152,6 +159,7 @@ export default function TaxInvoices() {
             </Toolbar>
           )}
           <DataTable
+        exportName="세금계산서"
             rows={list}
             rowKey={(t) => t.id}
             onRowClick={(t) => setViewId(t.id)}
@@ -188,6 +196,7 @@ export default function TaxInvoices() {
       {tab === '부가세' && (
         <>
           <DataTable
+        exportName="부가세집계"
             rows={vat}
             rowKey={(p) => p.label}
             showFooter

@@ -1,17 +1,22 @@
-import type { Approval, Card, CardTxn, Claim, ClaimItem, DB, Disbursement, Employee, PayrollRun, Proposal, TaxInvoice, Usage, Vendor, VoucherLine } from '../types';
+import type { Approval, Budget, Card, CardTxn, Claim, ClaimItem, Company, DB, Dept, Disbursement, Employee, PayrollRun, Proposal, TaxInvoice, Usage, Vendor, VoucherLine } from '../types';
 import { claimJournal, disbJournal, paymentJournal } from '../lib/journal';
 import { CEO, FINANCE_LEAD, defaultLine, notify } from '../lib/approval';
 import { DEFAULT_RATES, calcLine, deductionTotal, grossPay, netPay } from '../lib/payroll';
 
 // 모든 값은 가상의 예시다. 실제 회사 · 사람 · 사업자번호가 아니다.
-export const DB_VERSION = 2;
+export const DB_VERSION = 3;
 
 const accounts: DB['accounts'] = [
   { code: '103', name: '보통예금', type: '자산' },
+  { code: '108', name: '외상매출금', type: '자산' },
   { code: '135', name: '부가세대급금', type: '자산' },
   { code: '253', name: '미지급금', type: '부채' },
   { code: '254', name: '예수금', type: '부채' },
+  { code: '255', name: '부가세예수금', type: '부채' },
   { code: '262', name: '미지급비용', type: '부채' },
+  { code: '331', name: '자본금', type: '자본' },
+  { code: '375', name: '이월이익잉여금', type: '자본' },
+  { code: '404', name: '용역매출', type: '수익' },
   { code: '801', name: '급여', type: '비용' },
   { code: '811', name: '복리후생비', type: '비용' },
   { code: '812', name: '여비교통비', type: '비용' },
@@ -49,16 +54,77 @@ const vendors: Vendor[] = [
   { id: 'v5', name: '그린인쇄', bizNo: '101-11-00005' },
 ];
 
-// 메일 주소는 예시용 도메인(example.com)만 쓴다
-const employees: Employee[] = [
-  { id: 'e1', name: '김하늘', dept: '경영지원팀', rank: '팀장', bank: '가상은행', accountNo: '000-0001-0001', email: 'haneul@example.com', joinDate: '2019-03-04', baseSalary: 5200000, dependents: 3 },
-  { id: 'e2', name: '이도윤', dept: '개발팀', rank: '매니저', bank: '가상은행', accountNo: '000-0001-0002', email: 'doyun@example.com', joinDate: '2021-07-01', baseSalary: 4300000, dependents: 2 },
-  { id: 'e3', name: '박서연', dept: '개발팀', rank: '사원', bank: '예시은행', accountNo: '000-0001-0003', email: 'seoyeon@example.com', joinDate: '2025-01-02', baseSalary: 3100000, dependents: 1 },
-  { id: 'e4', name: '최민준', dept: '영업팀', rank: '과장', bank: '예시은행', accountNo: '000-0001-0004', email: 'minjun@example.com', joinDate: '2020-09-14', baseSalary: 4600000, dependents: 4 },
-  { id: 'e5', name: '정유나', dept: '마케팅팀', rank: '대리', bank: '가상은행', accountNo: '000-0001-0005', email: 'yuna@example.com', joinDate: '2022-04-11', baseSalary: 3700000, dependents: 1 },
-  { id: 'e6', name: '한지호', dept: '영업팀', rank: '사원', bank: '예시은행', accountNo: '000-0001-0006', email: 'jiho@example.com', joinDate: '2024-08-19', baseSalary: 3000000, dependents: 1 },
-  { id: 'e7', name: '윤서준', dept: '경영진', rank: '대표이사', bank: '가상은행', accountNo: '000-0001-0007', email: 'seojun@example.com', joinDate: '2018-01-02', baseSalary: 8000000, dependents: 3 },
+const companies: Company[] = [
+  { id: 'co1', name: '데모상사(주)' },
+  { id: 'co2', name: '데모랩(주)' },
 ];
+
+const depts: Dept[] = [
+  { id: 'dp-exec', companyId: 'co1', name: '경영진' },
+  { id: 'dp-mgmt-h', companyId: 'co1', name: '경영지원본부' },
+  { id: 'dp-mgmt', companyId: 'co1', parentId: 'dp-mgmt-h', name: '경영지원팀' },
+  { id: 'dp-tech-h', companyId: 'co1', name: '기술본부' },
+  { id: 'dp-dev', companyId: 'co1', parentId: 'dp-tech-h', name: '개발팀' },
+  { id: 'dp-infra', companyId: 'co1', parentId: 'dp-tech-h', name: '인프라팀' },
+  { id: 'dp-biz-h', companyId: 'co1', name: '사업본부' },
+  { id: 'dp-sales', companyId: 'co1', parentId: 'dp-biz-h', name: '영업팀' },
+  { id: 'dp-mkt', companyId: 'co1', parentId: 'dp-biz-h', name: '마케팅팀' },
+  { id: 'dp-lab-h', companyId: 'co2', name: '연구소' },
+  { id: 'dp-ai', companyId: 'co2', parentId: 'dp-lab-h', name: 'AI연구팀' },
+  { id: 'dp-data', companyId: 'co2', parentId: 'dp-lab-h', name: '데이터팀' },
+];
+
+const deptOf = (deptId: string) => depts.find((d) => d.id === deptId)!;
+const SALARY: Record<string, number> = { 대표이사: 8000000, 본부장: 6800000, 팀장: 5200000, 부장: 5600000, 차장: 4900000, 과장: 4600000, 매니저: 4300000, 대리: 3700000, 사원: 3100000 };
+
+// 메일 주소는 예시용 도메인(example.com)만 쓴다
+const core: Array<[string, string, string, string, string, number, number]> = [
+  // id, 이름, 부서, 직급, 입사일, 기본급, 기본공제
+  ['e1', '김하늘', 'dp-mgmt', '팀장', '2019-03-04', 5200000, 3],
+  ['e2', '이도윤', 'dp-dev', '팀장', '2021-07-01', 5200000, 2],
+  ['e3', '박서연', 'dp-dev', '사원', '2025-01-02', 3100000, 1],
+  ['e4', '최민준', 'dp-sales', '과장', '2020-09-14', 4600000, 4],
+  ['e5', '정유나', 'dp-mkt', '대리', '2022-04-11', 3700000, 1],
+  ['e6', '한지호', 'dp-sales', '사원', '2024-08-19', 3000000, 1],
+  ['e7', '윤서준', 'dp-exec', '대표이사', '2018-01-02', 8000000, 3],
+];
+
+// 조직도 · 결재선 화면을 실제 규모에 가깝게 보려고 넣은 가상의 직원들
+const SURNAMES = ['강', '고', '권', '남', '노', '류', '문', '민', '배', '서', '송', '신', '안', '양', '오', '우', '유', '임', '장', '전', '조', '주', '진', '차', '천', '하', '허', '홍', '황'];
+const GIVEN = ['가온', '건우', '나래', '다은', '도현', '라온', '민서', '보람', '서진', '세아', '수빈', '시우', '아린', '연우', '예준', '온유', '우진', '은채', '이안', '재희', '주원', '지안', '채원', '태오', '하린', '해솔', '현서', '희망'];
+const STAFF: Array<[string, string[]]> = [
+  ['dp-exec', ['본부장', '본부장']],
+  ['dp-mgmt', ['차장', '대리', '사원', '사원']],
+  ['dp-dev', ['과장', '대리', '대리', '사원', '사원']],
+  ['dp-infra', ['팀장', '과장', '대리', '사원']],
+  ['dp-sales', ['대리', '사원', '사원']],
+  ['dp-mkt', ['사원', '사원']],
+  ['dp-ai', ['팀장', '차장', '과장', '대리', '사원']],
+  ['dp-data', ['팀장', '대리', '사원', '사원']],
+];
+
+function buildEmployees(): Employee[] {
+  const list: Employee[] = core.map(([id, name, deptId, rank, joinDate, baseSalary, dependents]) => ({
+    id, name, companyId: deptOf(deptId).companyId, deptId, dept: deptOf(deptId).name, rank, bank: id === 'e3' || id === 'e4' || id === 'e6' ? '예시은행' : '가상은행',
+    accountNo: `000-0001-${id.slice(1).padStart(4, '0')}`, email: `${id}@example.com`, joinDate, baseSalary, dependents,
+  }));
+  const r = rng(42);
+  let n = 100;
+  for (const [deptId, ranks] of STAFF) {
+    for (const rank of ranks) {
+      n++;
+      const name = SURNAMES[Math.floor(r() * SURNAMES.length)] + GIVEN[Math.floor(r() * GIVEN.length)];
+      const year = 2016 + Math.floor(r() * 10);
+      list.push({
+        id: `e${n}`, name, companyId: deptOf(deptId).companyId, deptId, dept: deptOf(deptId).name, rank,
+        bank: r() < 0.5 ? '가상은행' : '예시은행', accountNo: `000-0002-${String(n).padStart(4, '0')}`, email: `e${n}@example.com`,
+        joinDate: `${year}-${pad(1 + Math.floor(r() * 12))}-${pad(1 + Math.floor(r() * 28))}`,
+        baseSalary: SALARY[rank] + Math.round(r() * 4) * 100000, dependents: 1 + Math.floor(r() * 4),
+      });
+    }
+  }
+  return list;
+}
 
 const cards: Card[] = [
   { id: 'c1', name: '법인카드 A', last4: '1001', ownerId: 'e2', kind: '법인카드' },
@@ -147,6 +213,7 @@ function approval(drafter: string, line: string[], receivers: string[], done: nu
 }
 
 export function seed(): DB {
+  const employees = buildEmployees();
   const db: DB = {
     version: DB_VERSION,
     company: '데모상사(주)',
@@ -165,6 +232,10 @@ export function seed(): DB {
     taxInvoices: [],
     rates: { ...DEFAULT_RATES },
     notifications: [],
+    budgets: [],
+    companies,
+    depts,
+    lineFavorites: [],
     seq: {},
   };
 
@@ -172,7 +243,7 @@ export function seed(): DB {
   const docNo = (prefix: string) => `${prefix}-2026-${String(next(prefix)).padStart(4, '0')}`;
   const voucherNo = (date: string) => `${date.replaceAll('-', '')}-${String(next(`V${date}`)).padStart(4, '0')}`;
 
-  const issue = (kind: '경비' | '지출결의' | '지급' | '급여', sourceId: string, date: string, memo: string, lines: VoucherLine[]) => {
+  const issue = (kind: DB['vouchers'][number]['kind'], sourceId: string, date: string, memo: string, lines: VoucherLine[]) => {
     const id = `vc${db.vouchers.length + 1}`;
     db.vouchers.push({ id, no: voucherNo(date), date, kind, sourceId, memo, lines, status: '발행' });
     return id;
@@ -284,7 +355,7 @@ export function seed(): DB {
       }),
     );
     const run: PayrollRun = { id: `pr-${ym}`, ym, payDate, status: m === 10 ? '작성중' : '확정', lines };
-    if (run.status === '확정') run.voucherId = issue('급여', run.id, payDate, `${ym} 급여`, payrollJournal(run));
+    if (run.status === '확정') run.voucherId = issue('급여', run.id, payDate, `${ym} 급여`, payrollJournal(run, employees));
     db.payrolls.push(run);
   }
 
@@ -308,12 +379,110 @@ export function seed(): DB {
   push(inv('매입', '2026-10-16', '클라우드호스팅', '101-11-00003', '10월 서버 호스팅', 820000, 82000, { disbLineId: 'd3l1', approvalNo: '20261016-41000001-00000003' }));
   push(inv('매입', '2026-10-12', '그린인쇄', '101-11-00005', '명함 · 리플릿 인쇄', 300000, 30000));
   push(inv('매입', '2026-10-14', '러닝랩 교육', '101-11-00004', '실무 교육 위탁', 1090909, 109091));
-  push(inv('매출', '2026-07-15', 'A 고객사', '301-81-00011', '7월 유지보수 용역', 12000000, 1200000));
-  push(inv('매출', '2026-08-20', 'B 유통', '301-81-00012', '시스템 구축 2차', 8500000, 850000));
-  push(inv('매출', '2026-09-25', 'C 솔루션', '301-81-00013', '데이터 분석 용역', 15000000, 1500000));
-  push(inv('매출', '2026-10-10', 'A 고객사', '301-81-00011', '10월 유지보수 용역', 12000000, 1200000));
-  const b = push(inv('매출', '2026-10-15', 'B 유통', '301-81-00012', '시스템 구축 3차', 6000000, 600000));
-  push(inv('매출', '2026-10-18', 'B 유통', '301-81-00012', '시스템 구축 3차 (공급가액 변동)', -1000000, -100000, { modifiedFrom: b.id, modifyReason: '공급가액 변동' }));
+  // 매출: 고객사별 월 정기 용역(1~10월). 10월 B 유통은 공급가액 변동 수정세금계산서가 있다.
+  const customers: Array<[string, string, string, number, number[]]> = [
+    ['A 고객사', '301-81-00011', '유지보수 용역', 120000000, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]],
+    ['B 유통', '301-81-00012', '시스템 구축', 90000000, [2, 4, 6, 8, 10]],
+    ['C 솔루션', '301-81-00013', '데이터 분석 용역', 110000000, [1, 3, 5, 7, 9]],
+    ['D 커머스', '301-81-00014', '플랫폼 운영 대행', 80000000, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]],
+  ];
+  let bId = '';
+  for (let m = 1; m <= 10; m++) {
+    for (const [name, bizNo, item, supply, months] of customers) {
+      if (!months.includes(m)) continue;
+      const t = push(inv('매출', `2026-${pad(m)}-${pad(10 + customers.findIndex((c) => c[0] === name) * 4)}`, name, bizNo, `${m}월 ${item}`, supply, supply / 10));
+      if (m === 10 && name === 'B 유통') bId = t.id;
+    }
+  }
+  push(inv('매출', '2026-10-18', 'B 유통', '301-81-00012', '10월 시스템 구축 (공급가액 변동)', -8000000, -800000, { modifiedFrom: bId, modifyReason: '공급가액 변동' }));
+
+  const TODAY = '2026-10-20';
+  const due = (date: string, months: number, day: number) => {
+    const [y, mo] = date.split('-').map(Number);
+    const d = new Date(y, mo - 1 + months, day);
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  };
+
+  // 기초잔액
+  issue('기초', 'opening', '2026-01-01', '2026년 기초잔액', [
+    { side: '차변', accountCode: '103', amount: 900000000, vendor: '-', memo: '기초 보통예금' },
+    { side: '대변', accountCode: '331', amount: 100000000, vendor: '-', memo: '자본금' },
+    { side: '대변', accountCode: '375', amount: 800000000, vendor: '-', memo: '이월이익잉여금' },
+  ]);
+
+  // 매출 전표와 다음 달 25일 수금
+  for (const t of db.taxInvoices.filter((x) => x.kind === '매출')) {
+    issue('매출', t.id, t.issueDate, `${t.partner} ${t.item}`, salesJournal(t));
+    const paidOn = due(t.issueDate, 1, 25);
+    if (paidOn <= TODAY && !t.modifiedFrom) {
+      issue('수금', t.id, paidOn, `${t.partner} 대금 수금`, [
+        { side: '차변', accountCode: '103', amount: t.supply + t.vat, vendor: t.partner, memo: `${t.item} 수금` },
+        { side: '대변', accountCode: '108', amount: t.supply + t.vat, vendor: t.partner, memo: `${t.item} 수금` },
+      ]);
+    }
+  }
+
+  // 지출결의 없이 처리된 7 · 8월 호스팅비(바로 이체)
+  for (const t of db.taxInvoices.filter((x) => x.kind === '매입' && x.disbLineId === '-')) {
+    issue('지급', t.id, t.issueDate, `${t.partner} ${t.item}`, [
+      { side: '차변', accountCode: '831', amount: t.supply, vendor: t.partner, memo: t.item, dept: '인프라팀', project: '서비스 운영' },
+      { side: '차변', accountCode: '135', amount: t.vat, vendor: t.partner, memo: `${t.item} 부가세` },
+      { side: '대변', accountCode: '103', amount: t.supply + t.vat, vendor: t.partner, memo: `${t.item} 이체` },
+    ]);
+  }
+
+  // 급여 공제액(예수금)은 다음 달 10일에 납부한다
+  for (const run of db.payrolls.filter((x) => x.status === '확정')) {
+    const on = due(run.payDate, 1, 10);
+    if (on > TODAY) continue;
+    const amt = run.lines.reduce((a, l) => a + deductionTotal(l), 0);
+    issue('납부', run.id, on, `${run.ym} 급여 원천세 · 4대보험 납부`, [
+      { side: '차변', accountCode: '254', amount: amt, vendor: '세무서 · 공단', memo: `${run.ym} 예수금 납부` },
+      { side: '대변', accountCode: '103', amount: amt, vendor: '세무서 · 공단', memo: `${run.ym} 예수금 납부` },
+    ]);
+  }
+
+  // 법인카드 대금은 다음 달 15일, 개인 지출 청구분은 다음 달 25일에 지급한다
+  for (const c of db.claims.filter((x) => x.voucherId)) {
+    const corp = c.items.filter((i) => i.payMethod === '법인카드').reduce((a, i) => a + i.amount, 0);
+    const own = c.items.filter((i) => i.payMethod !== '법인카드').reduce((a, i) => a + i.amount, 0);
+    const cardDay = due(`${c.period}-01`, 1, 15);
+    const ownDay = due(`${c.period}-01`, 1, 25);
+    if (corp && cardDay <= TODAY)
+      issue('지급', c.id, cardDay, `${c.period} 법인카드 대금`, [
+        { side: '차변', accountCode: '253', amount: corp, vendor: '법인카드 결제대금', memo: `${c.period} 카드대금` },
+        { side: '대변', accountCode: '103', amount: corp, vendor: '카드사', memo: `${c.period} 카드대금` },
+      ]);
+    if (own && ownDay <= TODAY)
+      issue('지급', c.id, ownDay, `${c.period} 개인 경비 지급`, [
+        { side: '차변', accountCode: '262', amount: own, vendor: employees.find((e) => e.id === c.empId)?.name ?? '', memo: `${c.period} 개인 경비` },
+        { side: '대변', accountCode: '103', amount: own, vendor: employees.find((e) => e.id === c.empId)?.name ?? '', memo: `${c.period} 개인 경비` },
+      ]);
+  }
+
+  // 부가세: 신고 기간 끝난 다음 달 25일에 매출세액 − 매입세액을 납부한다
+  for (const [from, to, payOn] of [['2026-01-01', '2026-03-31', '2026-04-25'], ['2026-04-01', '2026-06-30', '2026-07-25']] as const) {
+    const inRange = (t: TaxInvoice) => t.issueDate >= from && t.issueDate <= to;
+    const out = db.taxInvoices.filter((t) => t.kind === '매출' && inRange(t)).reduce((a, t) => a + t.vat, 0);
+    const inn = db.taxInvoices.filter((t) => t.kind === '매입' && inRange(t)).reduce((a, t) => a + t.vat, 0);
+    issue('납부', `vat-${from}`, payOn, `부가세 납부 (${from.slice(5, 7)}~${to.slice(5, 7)}월)`, [
+      { side: '차변', accountCode: '255', amount: out, vendor: '세무서', memo: '매출세액 정산' },
+      ...(inn ? [{ side: '대변' as const, accountCode: '135', amount: inn, vendor: '세무서', memo: '매입세액 정산' }] : []),
+      { side: '대변', accountCode: '103', amount: out - inn, vendor: '세무서', memo: '부가세 납부' },
+    ]);
+  }
+
+  // 예산: 부서 × 비용 계정, 인원수에 비례한 2026년 연간 예산(예시)
+  const headcount = (dept: string) => employees.filter((e) => e.dept === dept).length;
+  const perHead: Record<string, number> = { '811': 1800000, '812': 1200000, '813': 600000, '814': 600000, '822': 500000, '826': 300000, '830': 700000, '831': 900000 };
+  const teams = [...new Set(employees.map((e) => e.dept))];
+  for (const dept of teams) {
+    const h = headcount(dept);
+    const extra: Record<string, number> = dept === '마케팅팀' ? { '833': 60000000 } : dept === '영업팀' ? { '813': 12000000, '822': 6000000 } : dept === '인프라팀' ? { '831': 24000000 } : {};
+    const pay = employees.filter((e) => e.dept === dept).reduce((a, e) => a + (e.baseSalary + 200000) * 12 + e.baseSalary, 0);
+    const rows: Array<[string, number]> = [['801', Math.round(pay * 1.05 / 1e6) * 1e6], ...Object.entries(perHead).map(([code, v]) => [code, v * h + (extra[code] ?? 0)] as [string, number]), ...Object.entries(extra).filter(([code]) => !perHead[code])];
+    rows.forEach(([accountCode, amount]) => db.budgets.push({ id: `bg-${dept}-${accountCode}`, year: '2026', dept, accountCode, amount } as Budget));
+  }
 
   // 알림 — 현재 사용자(이도윤)에게 몇 건 쌓아 둔다
   notify(db, 'e2', '결재요청', '경비청구 결재 요청', '박서연 · 2026년 10월 경비청구', '/approvals?doc=' + encodeURIComponent('경비청구:cl-c4-2026-10'), '2026-10-16 10:00');
@@ -326,13 +495,28 @@ export function seed(): DB {
   return db;
 }
 
-/** 급여 전표: 총지급액은 급여, 공제액은 예수금, 차인지급액은 보통예금 */
-export function payrollJournal(run: PayrollRun): VoucherLine[] {
-  const gross = run.lines.reduce((a, l) => a + grossPay(l), 0);
+/** 매출 전표: 외상매출금 / 용역매출 · 부가세예수금. 마이너스 수정분은 차대를 뒤집는다. */
+export function salesJournal(t: TaxInvoice): VoucherLine[] {
+  const neg = t.supply < 0;
+  const flip = (side: '차변' | '대변') => (neg ? (side === '차변' ? '대변' : '차변') : side);
+  return [
+    { side: flip('차변'), accountCode: '108', amount: Math.abs(t.supply + t.vat), vendor: t.partner, memo: t.item, dept: '영업팀' },
+    { side: flip('대변'), accountCode: '404', amount: Math.abs(t.supply), vendor: t.partner, memo: t.item, dept: '영업팀' },
+    { side: flip('대변'), accountCode: '255', amount: Math.abs(t.vat), vendor: t.partner, memo: `${t.item} 부가세` },
+  ];
+}
+
+/** 급여 전표: 총지급액은 부서별 급여, 공제액은 예수금, 차인지급액은 보통예금 */
+export function payrollJournal(run: PayrollRun, employees: Employee[]): VoucherLine[] {
   const ded = run.lines.reduce((a, l) => a + deductionTotal(l), 0);
   const net = run.lines.reduce((a, l) => a + netPay(l), 0);
+  const byDept = run.lines.reduce<Record<string, number>>((acc, l) => {
+    const dept = employees.find((e) => e.id === l.empId)?.dept ?? '-';
+    acc[dept] = (acc[dept] ?? 0) + grossPay(l);
+    return acc;
+  }, {});
   return [
-    { side: '차변', accountCode: '801', amount: gross, vendor: '임직원', memo: `${run.ym} 급여` },
+    ...Object.entries(byDept).map(([dept, amount]) => ({ side: '차변' as const, accountCode: '801', amount, vendor: '임직원', memo: `${run.ym} 급여 · ${dept}`, dept })),
     { side: '대변', accountCode: '254', amount: ded, vendor: '4대보험 · 원천세', memo: `${run.ym} 급여 공제` },
     { side: '대변', accountCode: '103', amount: net, vendor: '임직원', memo: `${run.ym} 급여 지급` },
   ];

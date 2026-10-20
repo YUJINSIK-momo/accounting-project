@@ -19,9 +19,25 @@ export interface Vendor {
   bizNo: string;
 }
 
+export interface Company {
+  id: string;
+  name: string;
+}
+
+/** 부서 트리 — parentId 가 없으면 법인 바로 아래 */
+export interface Dept {
+  id: string;
+  companyId: string;
+  parentId?: string;
+  name: string;
+}
+
 export interface Employee {
   id: string;
   name: string;
+  companyId: string;
+  deptId: string;
+  /** 부서 이름 — deptId 의 이름과 같다 */
   dept: string;
   rank: string;
   bank: string;
@@ -57,15 +73,27 @@ export type ApprovalStatus = '작성중' | '결재중' | '결재완료' | '반�
 
 export interface ApprovalStep {
   empId: string;
-  decision?: '승인' | '반려';
+  /** 결재는 순서대로 승인, 합의는 관련 부서의 동의. 없으면 결재 */
+  role?: '결재' | '합의';
+  /** 전결: 이 사람이 최종 결재로 끝냄, 생략: 전결로 건너뜀 */
+  decision?: '승인' | '반려' | '전결' | '생략';
   decidedAt?: string;
   comment?: string;
+}
+
+export interface Attachment {
+  id: string;
+  name: string;
+  size: number;
+  type: string;
+  addedAt: string;
+  by: string;
 }
 
 export interface ApprovalEvent {
   at: string;
   empId: string;
-  action: '상신' | '승인' | '반려' | '수신' | '회수';
+  action: '상신' | '승인' | '합의' | '전결' | '반려' | '수신' | '회수';
   comment?: string;
 }
 
@@ -101,6 +129,7 @@ export interface Claim {
   decidedAt?: string;
   voucherId?: string;
   approval?: Approval;
+  attachments?: Attachment[];
 }
 
 export interface Proposal {
@@ -115,6 +144,7 @@ export interface Proposal {
   submittedAt?: string;
   decidedAt?: string;
   approval?: Approval;
+  attachments?: Attachment[];
 }
 
 export type Evidence = '세금계산서' | '계산서' | '카드' | '현금영수증' | '기타';
@@ -152,6 +182,7 @@ export interface Disbursement {
   voucherId?: string;
   paidVoucherId?: string;
   approval?: Approval;
+  attachments?: Attachment[];
 }
 
 export interface VoucherLine {
@@ -160,13 +191,16 @@ export interface VoucherLine {
   amount: number;
   vendor: string;
   memo: string;
+  /** 관리항목 — 예산 · 부서별 집계에 쓴다 */
+  dept?: string;
+  project?: string;
 }
 
 export interface Voucher {
   id: string;
   no: string;
   date: string;
-  kind: '경비' | '지출결의' | '지급' | '급여';
+  kind: '경비' | '지출결의' | '지급' | '급여' | '매출' | '수금' | '납부' | '기초';
   sourceId: string;
   memo: string;
   lines: VoucherLine[];
@@ -229,11 +263,28 @@ export interface AppNotification {
   id: string;
   to: string;
   at: string;
-  kind: '결재요청' | '결재완료' | '반려' | '수신' | '참조' | '회수' | '급여';
+  kind: '결재요청' | '결재완료' | '반려' | '수신' | '참조' | '회수' | '급여' | '합의요청';
   title: string;
   body: string;
   link: string;
   read: boolean;
+}
+
+export interface Budget {
+  id: string;
+  year: string;
+  dept: string;
+  accountCode: string;
+  amount: number;
+}
+
+export interface LineFavorite {
+  id: string;
+  owner: string;
+  name: string;
+  line: Array<{ empId: string; role: '결재' | '합의' }>;
+  receivers: string[];
+  refs: string[];
 }
 
 export interface DB {
@@ -254,5 +305,9 @@ export interface DB {
   taxInvoices: TaxInvoice[];
   rates: Rates;
   notifications: AppNotification[];
+  budgets: Budget[];
+  companies: Company[];
+  depts: Dept[];
+  lineFavorites: LineFavorite[];
   seq: Record<string, number>;
 }

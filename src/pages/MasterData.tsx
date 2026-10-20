@@ -8,7 +8,7 @@ import { accountName, empName, update, useDB } from '../data/store';
 import { uid } from '../lib/format';
 import type { Card, Rates } from '../types';
 
-type Tab = 'account' | 'usage' | 'vendor' | 'card' | 'employee' | 'rates';
+type Tab = 'account' | 'usage' | 'vendor' | 'card' | 'employee' | 'org' | 'rates';
 
 export default function MasterData() {
   const db = useDB();
@@ -45,6 +45,7 @@ export default function MasterData() {
           { value: 'account', label: '계정과목', count: db.accounts.length },
           { value: 'vendor', label: '거래처', count: db.vendors.length },
           { value: 'card', label: '카드', count: db.cards.length },
+          { value: 'org', label: '조직', count: db.depts.length },
           { value: 'employee', label: '사원', count: db.employees.length },
           { value: 'rates', label: '요율' },
         ]}
@@ -190,6 +191,7 @@ export default function MasterData() {
           dense
           columns={[
             { key: 'n', header: '이름', render: (e) => e.name },
+            { key: 'co', header: '회사', render: (e) => db.companies.find((c) => c.id === e.companyId)?.name },
             { key: 'd', header: '부서', render: (e) => e.dept },
             { key: 'r', header: '직급', render: (e) => e.rank },
             { key: 'j', header: '입사일', render: (e) => <span className="font-mono text-xs">{e.joinDate}</span> },
@@ -198,6 +200,30 @@ export default function MasterData() {
             { key: 'b', header: '급여계좌', render: (e) => <span className="font-mono text-xs">{e.bank} {e.accountNo}</span> },
             { key: 'm', header: '메일', render: (e) => <span className="text-xs text-yuyu-fg-muted">{e.email}</span> },
             { key: 'a', header: '개인 경비 계정', render: () => <span className="text-yuyu-fg-muted">{accountName(db, '262')}</span> },
+          ]}
+        />
+      )}
+
+      {tab === 'org' && (
+        <DataTable
+          exportName="조직"
+          rows={db.depts}
+          rowKey={(d) => d.id}
+          dense
+          columns={[
+            { key: 'c', header: '법인', render: (d) => db.companies.find((c) => c.id === d.companyId)?.name },
+            { key: 'p', header: '상위 조직', render: (d) => db.depts.find((x) => x.id === d.parentId)?.name ?? '-' },
+            { key: 'n', header: '부서', render: (d) => <span className={d.parentId ? '' : 'font-semibold'}>{d.name}</span> },
+            { key: 'h', header: '인원', align: 'right', render: (d) => db.employees.filter((e) => e.deptId === d.id).length },
+            {
+              key: 'lead',
+              header: '부서장(최상위 직급)',
+              render: (d) => {
+                const order = ['대표이사', '본부장', '팀장', '부장', '차장', '과장', '매니저', '대리', '사원'];
+                const lead = db.employees.filter((e) => e.deptId === d.id).sort((a, b) => order.indexOf(a.rank) - order.indexOf(b.rank))[0];
+                return lead ? `${lead.name} ${lead.rank}` : '-';
+              },
+            },
           ]}
         />
       )}

@@ -2,7 +2,7 @@ import { useState, type ElementType } from 'react';
 import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import {
   BarChart3, BookOpen, Building2, Calculator, CheckSquare, ClipboardList, CreditCard, FileSignature, FileText,
-  HandCoins, Home as HomeIcon, Landmark, Layers, ListChecks, Menu, Receipt, ReceiptText, RotateCcw, Scale, ShieldAlert, Table2, Wallet, X,
+  FileBarChart2, HandCoins, Home as HomeIcon, Landmark, Layers, PiggyBank, ListChecks, Menu, Receipt, ReceiptText, RotateCcw, Scale, ShieldAlert, Table2, Wallet, X,
 } from 'lucide-react';
 import { Badge, cx } from './components/yuyu';
 import { resetDB, update, useDB } from './data/store';
@@ -28,6 +28,8 @@ import Payslips from './pages/Payslips';
 import Severance from './pages/Severance';
 import YearEnd from './pages/YearEnd';
 import TaxInvoices from './pages/TaxInvoices';
+import Budget from './pages/Budget';
+import Statements from './pages/Statements';
 
 interface NavItem {
   to: string;
@@ -67,6 +69,8 @@ const NAV: { group: string; items: NavItem[] }[] = [
       { to: '/journal', label: '분개장', icon: ListChecks },
       { to: '/ledger', label: '총계정원장', icon: BookOpen },
       { to: '/trial-balance', label: '합계잔액시산표', icon: Scale },
+      { to: '/statements', label: '재무제표', icon: FileBarChart2 },
+      { to: '/budget', label: '예산 대비 집행', icon: PiggyBank },
     ],
   },
   {
@@ -209,6 +213,8 @@ export default function App() {
             <Route path="/severance" element={<Severance />} />
             <Route path="/year-end" element={<YearEnd />} />
             <Route path="/tax-invoices" element={<TaxInvoices />} />
+            <Route path="/budget" element={<Budget />} />
+            <Route path="/statements" element={<Statements />} />
             <Route path="/master" element={<MasterData />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

@@ -3,6 +3,9 @@ import { FileSearch, FileText, Plus, Send } from 'lucide-react';
 import { Button, PageHeader } from '../components/yuyu';
 import { Amount, DataTable, Field, Input, Modal, MoneyInput, StatusBadge, TextArea, Toolbar, toast } from '../components/app/ui';
 import { DocumentModal, SubmitDocModal } from '../components/app/approval';
+import { AttachmentEditor } from '../components/app/attachments';
+import { deleteFile } from '../lib/files';
+import type { Attachment } from '../types';
 import { empName, nextDocNo, update, useDB } from '../data/store';
 import { sum, today, uid } from '../lib/format';
 
@@ -10,7 +13,7 @@ export default function Proposals() {
   const db = useDB();
   const [keyword, setKeyword] = useState('');
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ title: '', amount: 0, body: '' });
+  const [form, setForm] = useState<{ title: string; amount: number; body: string; attachments: Attachment[] }>({ title: '', amount: 0, body: '', attachments: [] });
   const [submitId, setSubmitId] = useState<string>();
   const [viewId, setViewId] = useState<string>();
 
@@ -21,15 +24,20 @@ export default function Proposals() {
     if (!form.title.trim() || form.amount <= 0) return toast('제목과 금액을 입력하세요.');
     const id = `p-${uid()}`;
     update((d) => {
-      d.proposals.push({ id, docNo: nextDocNo(d, 'PRO'), title: form.title.trim(), amount: form.amount, body: form.body, draftDate: today(), empId: d.currentEmpId, status: '작성중' });
+      d.proposals.push({ id, docNo: nextDocNo(d, 'PRO'), title: form.title.trim(), amount: form.amount, body: form.body, draftDate: today(), empId: d.currentEmpId, status: '작성중', attachments: form.attachments });
     });
     if (!submit) toast('품의서를 임시저장했습니다.');
     setOpen(false);
-    setForm({ title: '', amount: 0, body: '' });
+    setForm({ title: '', amount: 0, body: '', attachments: [] });
     if (submit) setSubmitId(id);
   };
 
   const submit = (id: string) => setSubmitId(id);
+  const cancel = () => {
+    form.attachments.forEach((a) => deleteFile(a.id).catch(() => undefined));
+    setForm({ title: '', amount: 0, body: '', attachments: [] });
+    setOpen(false);
+  };
 
   return (
     <div className="space-y-6">
@@ -45,6 +53,7 @@ export default function Proposals() {
         </div>
       </Toolbar>
       <DataTable
+        exportName="품의서"
         rows={rows}
         rowKey={(p) => p.id}
         onRowClick={(p) => p.status !== '작성중' && setViewId(p.id)}
@@ -82,10 +91,10 @@ export default function Proposals() {
       <Modal
         open={open}
         title="품의서 작성"
-        onClose={() => setOpen(false)}
+        onClose={cancel}
         footer={
           <>
-            <Button variant="ghost" onClick={() => setOpen(false)}>
+            <Button variant="ghost" onClick={cancel}>
               취소
             </Button>
             <Button variant="outline" onClick={() => save(false)}>
@@ -107,6 +116,10 @@ export default function Proposals() {
           <Field label="내용">
             <TextArea value={form.body} onChange={(e) => setForm({ ...form, body: e.target.value })} placeholder="목적, 일정, 산출 근거" />
           </Field>
+          <div>
+            <span className="mb-1 block text-xs font-medium text-yuyu-fg-muted">첨부파일 (견적서 등)</span>
+            <AttachmentEditor items={form.attachments} onChange={(a) => setForm({ ...form, attachments: a })} by={db.currentEmpId} />
+          </div>
         </div>
       </Modal>
       <SubmitDocModal docRef={submitId ? { kind: '품의서', id: submitId } : undefined} drafterId={db.proposals.find((p) => p.id === submitId)?.empId ?? db.currentEmpId} onClose={() => setSubmitId(undefined)} />

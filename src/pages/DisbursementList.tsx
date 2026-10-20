@@ -23,6 +23,7 @@ export default function DisbursementList() {
         </div>
       </Toolbar>
       <DataTable
+        exportName="지출결의서"
         rows={rows}
         rowKey={(d) => d.id}
         onRowClick={(d) => navigate(`/disbursements/${d.id}`)}

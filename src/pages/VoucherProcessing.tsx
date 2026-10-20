@@ -113,6 +113,7 @@ export default function VoucherProcessing() {
         </Button>
       </div>
       <DataTable
+        exportName="전표처리"
         rows={rows}
         rowKey={(r) => r.id}
         selectedKey={current?.id}
@@ -156,6 +157,7 @@ export default function VoucherProcessing() {
         <div className={`grid gap-4 ${claim ? 'xl:grid-cols-[1fr_320px]' : ''}`}>
           <Section title={`전표분개 · ${current.docNo}`} action={<span className="text-xs text-yuyu-fg-muted">차변 {bal.debit.toLocaleString('ko-KR')} · 대변 {bal.credit.toLocaleString('ko-KR')} · 차이 {bal.diff.toLocaleString('ko-KR')}</span>}>
             <DataTable
+        exportName="전표분개"
               rows={lines.map((l, i) => ({ ...l, i }))}
               rowKey={(l) => String(l.i)}
               dense

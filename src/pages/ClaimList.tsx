@@ -47,6 +47,7 @@ export default function ClaimList() {
         </Field>
       </Toolbar>
       <DataTable
+        exportName="청구내역"
         rows={rows}
         rowKey={(c) => c.id}
         selectedKey={selected}

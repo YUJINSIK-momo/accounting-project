@@ -7,6 +7,7 @@ import type { AppNotification } from '../../types';
 
 const ICON: Record<AppNotification['kind'], typeof Bell> = {
   결재요청: Bell,
+  합의요청: Bell,
   결재완료: FileCheck2,
   반려: FileX2,
   수신: Inbox,
@@ -16,6 +17,7 @@ const ICON: Record<AppNotification['kind'], typeof Bell> = {
 };
 const TONE: Record<AppNotification['kind'], string> = {
   결재요청: 'text-yuyu-warning',
+  합의요청: 'text-yuyu-infra',
   결재완료: 'text-yuyu-success',
   반려: 'text-yuyu-danger',
   수신: 'text-yuyu-infra',

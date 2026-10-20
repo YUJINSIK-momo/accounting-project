@@ -89,6 +89,7 @@ export default function YearEnd() {
 
       {tab === 'ledger' && (
         <DataTable
+        exportName="근로소득원천징수부"
           rows={months}
           rowKey={(m) => m.ym}
           dense

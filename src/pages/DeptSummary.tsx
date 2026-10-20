@@ -58,6 +58,7 @@ export default function DeptSummary() {
         </Field>
       </Toolbar>
       <DataTable
+        exportName="경비부서집계표"
         rows={rows}
         rowKey={(r) => r.emp.id}
         showFooter

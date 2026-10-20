@@ -1,6 +1,7 @@
 // 회계 화면용 부품 — yuyu 에 없는 표 · 입력 · 모달을 yuyu 토큰만으로 만든다.
-import { useEffect, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react';
-import { X } from 'lucide-react';
+import { useEffect, useRef, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react';
+import { FileSpreadsheet, X } from 'lucide-react';
+import { downloadXlsx, tableToRows } from '../../lib/xlsx';
 import { Badge, cx, type Tone } from '../yuyu';
 import type { ApprovalStatus } from '../../types';
 import type { Check } from '../../lib/journal';
@@ -24,15 +25,26 @@ interface DataTableProps<T> {
   showFooter?: boolean;
   dense?: boolean;
   maxHeight?: string;
+  /** 주면 표 위에 엑셀 내보내기 버튼이 생긴다 — 파일 이름 */
+  exportName?: string;
 }
 
 const alignClass = { left: 'text-left', right: 'text-right', center: 'text-center' };
 
-export function DataTable<T>({ columns, rows, rowKey, empty = '데이터가 존재하지 않습니다', onRowClick, selectedKey, showFooter, dense, maxHeight }: DataTableProps<T>) {
+export function DataTable<T>({ columns, rows, rowKey, empty = '데이터가 존재하지 않습니다', onRowClick, selectedKey, showFooter, dense, maxHeight, exportName }: DataTableProps<T>) {
   const cell = dense ? 'px-3 py-1.5' : 'px-3 py-2.5';
-  return (
+  const ref = useRef<HTMLTableElement>(null);
+  const exportXlsx = () => {
+    if (!ref.current) return;
+    // 빈 머리글(버튼 · 체크박스 열)은 뺀다
+    const all = tableToRows(ref.current);
+    const keep = all[0].map((h, i) => (h !== '' ? i : -1)).filter((i) => i >= 0);
+    const rowsOut = rows.length ? all.map((r) => keep.map((i) => r[i])) : [keep.map((i) => all[0][i])];
+    downloadXlsx(`${exportName}_${new Date().toISOString().slice(0, 10)}`, rowsOut);
+  };
+  const table = (
     <div className="overflow-auto rounded-yuyu-md border border-yuyu-line/60 bg-yuyu-surface" style={{ maxHeight }}>
-      <table className="w-full border-collapse text-sm">
+      <table ref={ref} className="w-full border-collapse text-sm">
         <thead className="sticky top-0 z-10 bg-yuyu-raised">
           <tr>
             {columns.map((c) => (
@@ -87,6 +99,17 @@ export function DataTable<T>({ columns, rows, rowKey, empty = '데이터가 존�
           </tfoot>
         )}
       </table>
+    </div>
+  );
+  if (!exportName) return table;
+  return (
+    <div className="space-y-1.5">
+      <div className="flex justify-end">
+        <button type="button" onClick={exportXlsx} className="flex items-center gap-1 rounded-yuyu-sm px-2 py-1 text-xs text-yuyu-fg-muted hover:bg-yuyu-raised hover:text-yuyu-fg">
+          <FileSpreadsheet size={14} className="text-yuyu-success" /> 엑셀 내보내기
+        </button>
+      </div>
+      {table}
     </div>
   );
 }
